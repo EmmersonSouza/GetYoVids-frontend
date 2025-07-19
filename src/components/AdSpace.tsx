@@ -31,7 +31,7 @@ const AdSpace: React.FC<AdSpaceProps> = ({
       if (size.includes('300x600')) return "min-h-[600px] h-[600px] flex items-center justify-center";
       if (size.includes('300x900')) return "min-h-[900px] h-[900px] flex items-center justify-center";
       if (size.includes('300x1200')) return "min-h-[1200px] h-[1200px] flex items-center justify-center";
-      if (size.includes('160x600')) return "min-h-[600px] h-[600px] flex items-center justify-center";
+      if (size.includes('160x600')) return "min-h-[600px] h-[600px] w-[160px] flex items-center justify-center";
       // Responsive height based on viewport
       return "min-h-[600px] h-[80vh] flex items-center justify-center"; // default responsive
     }
@@ -52,31 +52,93 @@ const AdSpace: React.FC<AdSpaceProps> = ({
   
   const containerClasses = sticky ? "sticky top-4" : "";
 
-  // Inject ad scripts for 300x250 size
+  // Inject ad scripts for different sizes
   useEffect(() => {
-    if (size === '300x250' && adRef.current) {
+    if (adRef.current) {
       // Clear any existing content
       adRef.current.innerHTML = '';
 
-      // Create and inject the first script
-      const script1 = document.createElement('script');
-      script1.type = 'text/javascript';
-      script1.innerHTML = `
-        atOptions = {
-          'key' : '02ec90615c00e9e8df9ffab6e17b6ed6',
-          'format' : 'iframe',
-          'height' : 250,
-          'width' : 300,
-          'params' : {}
-        };
-      `;
-      adRef.current.appendChild(script1);
+      if (size === '300x250') {
+        // Create and inject the first script
+        const script1 = document.createElement('script');
+        script1.type = 'text/javascript';
+        script1.innerHTML = `
+          atOptions = {
+            'key' : '02ec90615c00e9e8df9ffab6e17b6ed6',
+            'format' : 'iframe',
+            'height' : 250,
+            'width' : 300,
+            'params' : {}
+          };
+        `;
+        adRef.current.appendChild(script1);
 
-      // Create and inject the second script
-      const script2 = document.createElement('script');
-      script2.type = 'text/javascript';
-      script2.src = '//www.highperformanceformat.com/02ec90615c00e9e8df9ffab6e17b6ed6/invoke.js';
-      adRef.current.appendChild(script2);
+        // Create and inject the second script
+        const script2 = document.createElement('script');
+        script2.type = 'text/javascript';
+        script2.src = '//www.highperformanceformat.com/02ec90615c00e9e8df9ffab6e17b6ed6/invoke.js';
+        adRef.current.appendChild(script2);
+      } else if (size === '160x600') {
+        // Create and inject the first script for 160x600
+        const script1 = document.createElement('script');
+        script1.type = 'text/javascript';
+        script1.innerHTML = `
+          atOptions = {
+            'key' : '6b7813cca59ab943a06adc91b6530be2',
+            'format' : 'iframe',
+            'height' : 600,
+            'width' : 160,
+            'params' : {}
+          };
+        `;
+        adRef.current.appendChild(script1);
+
+        // Create and inject the second script
+        const script2 = document.createElement('script');
+        script2.type = 'text/javascript';
+        script2.src = '//www.highperformanceformat.com/6b7813cca59ab943a06adc91b6530be2/invoke.js';
+        adRef.current.appendChild(script2);
+      } else if (size === '728x90') {
+        // Create and inject the first script for 728x90
+        const script1 = document.createElement('script');
+        script1.type = 'text/javascript';
+        script1.innerHTML = `
+          atOptions = {
+            'key' : 'e12fe3309289642d85f214c8a89e2a3c',
+            'format' : 'iframe',
+            'height' : 90,
+            'width' : 728,
+            'params' : {}
+          };
+        `;
+        adRef.current.appendChild(script1);
+
+        // Create and inject the second script
+        const script2 = document.createElement('script');
+        script2.type = 'text/javascript';
+        script2.src = '//www.highperformanceformat.com/e12fe3309289642d85f214c8a89e2a3c/invoke.js';
+        adRef.current.appendChild(script2);
+      } else if (size === '970x90') {
+        // Create and inject the first script for 970x90
+        const script1 = document.createElement('script');
+        script1.type = 'text/javascript';
+        script1.innerHTML = `
+          atOptions = {
+            'key' : 'e12fe3309289642d85f214c8a89e2a3c',
+            'format' : 'iframe',
+            'height' : 90,
+            'width' : 970,
+            'params' : {}
+          };
+        `;
+        adRef.current.appendChild(script1);
+
+        // Create and inject the second script
+        const script2 = document.createElement('script');
+        script2.type = 'text/javascript';
+        script2.src = '//www.highperformanceformat.com/e12fe3309289642d85f214c8a89e2a3c/invoke.js';
+        adRef.current.appendChild(script2);
+      }
 
       // Cleanup function
       return () => {
@@ -89,7 +151,7 @@ const AdSpace: React.FC<AdSpaceProps> = ({
 
   // Render content based on size
   const renderContent = () => {
-    if (size === '300x250') {
+    if (size === '300x250' || size === '160x600' || size === '728x90' || size === '970x90') {
       return <div ref={adRef} className="w-full h-full flex items-center justify-center" />;
     }
     

@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const HeifConverter = () => {
   const config = sidebarConfig[2]?.items?.[0]?.children?.find(item => item.path === "/heif-converter");
@@ -16,13 +17,19 @@ const HeifConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["HEIF", "HEIC"]}
-      supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "BMP", "TIFF"]}
-      acceptedFileTypes="image/heif,image/heic,.heif,.heic"
-      maxFileSize="25MB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["HEIF", "HEIC"]}
+        supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "BMP", "TIFF"]}
+        acceptedFileTypes="image/heif,image/heic,.heif,.heic"
+        maxFileSize="25MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

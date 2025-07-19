@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const TiffConverter = () => {
   const config = sidebarConfig[2]?.items?.[0]?.children?.find(item => item.path === "/tiff-converter");
@@ -16,13 +17,19 @@ const TiffConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["TIFF", "TIF"]}
-      supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "GIF", "BMP", "TGA", "ICO"]}
-      acceptedFileTypes="image/tiff,.tiff,.tif"
-      maxFileSize="25MB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["TIFF", "TIF"]}
+        supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "GIF", "BMP", "TGA", "ICO"]}
+        acceptedFileTypes="image/tiff,.tiff,.tif"
+        maxFileSize="25MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

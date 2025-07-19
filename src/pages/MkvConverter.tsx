@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const MkvConverter = () => {
   const config = sidebarConfig[2]?.items?.[1]?.children?.find(item => item.path === "/mkv-converter");
@@ -16,13 +17,19 @@ const MkvConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["MKV"]}
-      supportedOutputFormats={["MP4", "AVI", "MOV", "WEBM", "WMV", "FLV", "3GP", "M4V"]}
-      acceptedFileTypes="video/x-matroska,.mkv"
-      maxFileSize="1GB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["MKV"]}
+        supportedOutputFormats={["MP4", "AVI", "MOV", "WEBM", "WMV", "FLV", "3GP", "M4V"]}
+        acceptedFileTypes="video/x-matroska,.mkv"
+        maxFileSize="1GB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

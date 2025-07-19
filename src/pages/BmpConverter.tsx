@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const BmpConverter = () => {
   const config = sidebarConfig[2]?.items?.[0]?.children?.find(item => item.path === "/bmp-converter");
@@ -16,13 +17,19 @@ const BmpConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["BMP"]}
-      supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "GIF", "TIFF", "TGA", "ICO"]}
-      acceptedFileTypes="image/bmp,.bmp"
-      maxFileSize="50MB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["BMP"]}
+        supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "GIF", "TIFF", "TGA", "ICO"]}
+        acceptedFileTypes="image/bmp,.bmp"
+        maxFileSize="50MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

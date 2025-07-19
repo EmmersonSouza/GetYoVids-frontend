@@ -1,8 +1,10 @@
 
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import AdSpace from "./AdSpace";
+import CleanRouteAd from "./ads/CleanRouteAds";
+import AdultRouteAd from "./ads/AdultRouteAds";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +12,20 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  // Determine if current route is adult content
+  const isAdultRoute = [
+    '/pornhub-downloader',
+    '/xvideos-downloader', 
+    '/xhamster-downloader',
+    '/redgifs-downloader',
+    '/youporn-downloader',
+    '/spankbang-downloader'
+  ].includes(location.pathname);
+
+  // Choose the appropriate ad component
+  const AdComponent = isAdultRoute ? AdultRouteAd : CleanRouteAd;
 
   return (
     <div className="min-h-screen bg-background flex w-full">
@@ -33,7 +49,7 @@ const Layout = ({ children }: LayoutProps) => {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Banner Ad - Above the fold */}
         <div className="bg-sidebar border-b border-gray-800 p-2">
-          <AdSpace type="horizontal" size="970x90" priority="high" />
+          <AdComponent size="970x90" />
         </div>
 
         {/* Header */}
@@ -53,9 +69,11 @@ const Layout = ({ children }: LayoutProps) => {
 
         {/* Content area with vertical ads */}
         <div className="flex-1 flex">
-          {/* Left vertical ad space - single 300x900 ad */}
-          <div className="hidden xl:block w-72 2xl:w-80 bg-sidebar border-r border-gray-800 p-4">
-            <AdSpace type="vertical" size="300x900" sticky={true} />
+          {/* Left vertical ad space - multiple 160x600 ads */}
+          <div className="hidden xl:block w-48 2xl:w-56 bg-sidebar border-r border-gray-800 p-4 space-y-4">
+            <AdComponent size="160x600" />
+            <AdComponent size="160x600" />
+            <AdComponent size="160x600" />
           </div>
 
           {/* Main content */}
@@ -65,9 +83,11 @@ const Layout = ({ children }: LayoutProps) => {
             </main>
           </div>
 
-          {/* Right vertical ad space - single 300x900 ad */}
-          <div className="hidden xl:block w-72 2xl:w-80 bg-sidebar border-l border-gray-800 p-4">
-            <AdSpace type="vertical" size="300x900" sticky={true} />
+          {/* Right vertical ad space - multiple 160x600 ads */}
+          <div className="hidden xl:block w-48 2xl:w-56 bg-sidebar border-l border-gray-800 p-4 space-y-4">
+            <AdComponent size="160x600" />
+            <AdComponent size="160x600" />
+            <AdComponent size="160x600" />
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const TgaConverter = () => {
   const config = sidebarConfig[2]?.items?.[0]?.children?.find(item => item.path === "/tga-converter");
@@ -16,13 +17,19 @@ const TgaConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["TGA"]}
-      supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "GIF", "BMP", "TIFF", "ICO"]}
-      acceptedFileTypes="image/x-tga,.tga"
-      maxFileSize="50MB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["TGA"]}
+        supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "GIF", "BMP", "TIFF", "ICO"]}
+        acceptedFileTypes="image/x-tga,.tga"
+        maxFileSize="50MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

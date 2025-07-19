@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const OggConverter = () => {
   const config = sidebarConfig[2].items[2].children?.find(item => item.path === "/ogg-converter");
@@ -9,13 +10,19 @@ const OggConverter = () => {
   }
 
   return (
-    <ConverterPage 
-      config={config}
-      supportedInputFormats={["OGG"]}
-      supportedOutputFormats={["MP3", "WAV", "AAC", "FLAC", "M4A", "WMA", "AIFF", "AMR"]}
-      acceptedFileTypes="audio/ogg,.ogg"
-      maxFileSize="200MB"
-    />
+    <>
+      <ConverterPage 
+        config={config}
+        supportedInputFormats={["OGG"]}
+        supportedOutputFormats={["MP3", "WAV", "AAC", "FLAC", "M4A", "WMA", "AIFF", "AMR"]}
+        acceptedFileTypes="audio/ogg,.ogg"
+        maxFileSize="200MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

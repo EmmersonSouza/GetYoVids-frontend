@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const WebmConverter = () => {
   // More robust config finding with debugging
@@ -18,13 +19,19 @@ const WebmConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["WEBM"]}
-      supportedOutputFormats={["MP4", "AVI", "MKV", "MOV", "WMV", "FLV", "3GP", "M4V"]}
-      acceptedFileTypes="video/webm,.webm"
-      maxFileSize="200MB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["WEBM"]}
+        supportedOutputFormats={["MP4", "AVI", "MKV", "MOV", "WMV", "FLV", "3GP", "M4V"]}
+        acceptedFileTypes="video/webm,.webm"
+        maxFileSize="200MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 

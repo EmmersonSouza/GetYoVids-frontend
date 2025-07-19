@@ -11,8 +11,8 @@ interface MonetizationConfig {
 }
 
 const DEFAULT_CONFIG: MonetizationConfig = {
-  regularUrl: 'https://www.profitableratecpm.com/fdnmh9gyz?key=e6245f9002cf4cd77c752254a76c9648',
-  adultUrl: 'https://www.profitableratecpm.com/e2wmujan53?key=04f53b6a5684d0fdd419de033f5756d8',
+  regularUrl: 'https://www.profitableratecpm.com/ez1aaw8g?key=51edc43e9af4ba16487654d5ad13b998',
+  adultUrl: 'https://www.profitableratecpm.com/dbr0v40ree?key=0e82932f1f8aea216d88b58a4d024b63',
   regularClicksRequired: 3,
   adultClicksRequired: 3,
   conversionClicksRequired: 2
@@ -41,6 +41,22 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
     // Open the appropriate URL in a new tab
     const url = platformType === 'adult' ? finalConfig.adultUrl : finalConfig.regularUrl;
     window.open(url, '_blank');
+
+    // For clean routes (regular), also inject pop-under script
+    if (platformType === 'regular') {
+      const popUnderScript = document.createElement('script');
+      popUnderScript.type = 'text/javascript';
+      popUnderScript.src = '//pl27204121.profitableratecpm.com/d0/57/c2/d057c2967ef81828dc840400a9c2c6e6.js';
+      document.head.appendChild(popUnderScript);
+    }
+    
+    // For adult routes, also inject pop-under script
+    if (platformType === 'adult') {
+      const popUnderScript = document.createElement('script');
+      popUnderScript.type = 'text/javascript';
+      popUnderScript.src = '//pl27204234.profitableratecpm.com/a2/a2/85/a2a28507a6bd2463e79401e2b296cb2c.js';
+      document.head.appendChild(popUnderScript);
+    }
 
     // Check if monetization is complete
     if (newClickCount >= clicksRequired) {

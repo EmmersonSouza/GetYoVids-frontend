@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { ToolPage } from "../components/ToolPage";
 import { InternalLinking } from "../components/InternalLinking";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const YoutubeDownloader = () => {
   const config = sidebarConfig[0].items.find(item => item.path === "/youtube-downloader")!;
@@ -108,6 +109,12 @@ const YoutubeDownloader = () => {
         showFormatOptions={true}
       />
 
+      {/* Banner Ad */}
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+
       {/* SEO Content Section */}
       <div className="max-w-4xl mx-auto px-4 md:px-8">
         {/* Features Section */}
@@ -166,90 +173,7 @@ const YoutubeDownloader = () => {
           </div>
         </div>
 
-        {/* Comparison Table */}
-        <div className="mt-8 bg-card rounded-lg border border-gray-800 p-8">
-          <h2 className="text-2xl font-bold text-white mb-6">
-            Why GetYoVids.com is Better
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-gray-300">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4">Feature</th>
-                  <th className="text-center py-3 px-4">GetYoVids.com</th>
-                  <th className="text-center py-3 px-4">y2mate</th>
-                  <th className="text-center py-3 px-4">savefrom.net</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Download Speed</td>
-                  <td className="text-center py-3 px-4 text-green-400">⚡ 10x Faster</td>
-                  <td className="text-center py-3 px-4 text-red-400">Slow</td>
-                  <td className="text-center py-3 px-4 text-yellow-400">Medium</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Quality Options</td>
-                  <td className="text-center py-3 px-4 text-green-400">HD, 4K, 8K</td>
-                  <td className="text-center py-3 px-4 text-yellow-400">HD Only</td>
-                  <td className="text-center py-3 px-4 text-yellow-400">HD Only</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Registration Required</td>
-                  <td className="text-center py-3 px-4 text-green-400">❌ No</td>
-                  <td className="text-center py-3 px-4 text-red-400">✅ Yes</td>
-                  <td className="text-center py-3 px-4 text-red-400">✅ Yes</td>
-                </tr>
 
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Playlist Support</td>
-                  <td className="text-center py-3 px-4 text-green-400">✅ Full Support</td>
-                  <td className="text-center py-3 px-4 text-yellow-400">Limited</td>
-                  <td className="text-center py-3 px-4 text-red-400">❌ No</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Ads & Popups</td>
-                  <td className="text-center py-3 px-4 text-green-400">❌ None</td>
-                  <td className="text-center py-3 px-4 text-red-400">✅ Many</td>
-                  <td className="text-center py-3 px-4 text-red-400">✅ Many</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* User Reviews */}
-        <div className="mt-8 bg-card rounded-lg border border-gray-800 p-8">
-          <h2 className="text-2xl font-bold text-white mb-6">
-            What Users Say About Our YouTube Downloader
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-gray-800 rounded-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="text-yellow-400">★★★★★</div>
-                <span className="ml-2 text-white font-semibold">5.0</span>
-              </div>
-              <p className="text-gray-300 mb-4">"Finally found a YouTube downloader that actually works! Fast and reliable. No more waiting for hours."</p>
-              <div className="text-sm text-gray-400">- Sarah M.</div>
-            </div>
-            <div className="bg-gray-800 rounded-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="text-yellow-400">★★★★★</div>
-                <span className="ml-2 text-white font-semibold">5.0</span>
-              </div>
-              <p className="text-gray-300 mb-4">"Best quality downloads I've ever seen. HD videos look perfect and the 4K option is amazing!"</p>
-              <div className="text-sm text-gray-400">- Mike R.</div>
-            </div>
-            <div className="bg-gray-800 rounded-lg p-6">
-              <div className="flex items-center mb-4">
-                <div className="text-yellow-400">★★★★★</div>
-                <span className="ml-2 text-white font-semibold">5.0</span>
-              </div>
-              <p className="text-gray-300 mb-4">"No registration needed, no ads, just pure functionality. Love the playlist download feature!"</p>
-              <div className="text-sm text-gray-400">- Alex K.</div>
-            </div>
-          </div>
-        </div>
 
         {/* FAQ Section */}
         <div className="mt-8 bg-card rounded-lg border border-gray-800 p-8">
@@ -287,6 +211,9 @@ const YoutubeDownloader = () => {
         {/* Internal Linking */}
         <InternalLinking currentPage="/youtube-downloader" category="video-downloaders" />
       </div>
+
+      {/* Bottom Banner Ad */}
+      <BannerAd />
     </>
   );
 };

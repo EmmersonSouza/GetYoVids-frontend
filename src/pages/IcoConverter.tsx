@@ -1,5 +1,6 @@
 import ConverterPage from "../components/ConverterPage";
 import { sidebarConfig } from "../config/sidebarConfig";
+import BannerAd from "../components/BannerAd";
 
 const IcoConverter = () => {
   const config = sidebarConfig[2]?.items?.[0]?.children?.find(item => item.path === "/ico-converter");
@@ -16,13 +17,19 @@ const IcoConverter = () => {
   const finalConfig = config || fallbackConfig;
 
   return (
-    <ConverterPage 
-      config={finalConfig}
-      supportedInputFormats={["ICO"]}
-      supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "BMP", "TIFF", "GIF"]}
-      acceptedFileTypes="image/x-icon,.ico"
-      maxFileSize="10MB"
-    />
+    <>
+      <ConverterPage 
+        config={finalConfig}
+        supportedInputFormats={["ICO"]}
+        supportedOutputFormats={["PNG", "JPEG", "JPG", "WEBP", "BMP", "TIFF", "GIF"]}
+        acceptedFileTypes="image/x-icon,.ico"
+        maxFileSize="10MB"
+      />
+      <BannerAd />
+
+      {/* Additional Banner Ad */}
+      <BannerAd />
+    </>
   );
 };
 
