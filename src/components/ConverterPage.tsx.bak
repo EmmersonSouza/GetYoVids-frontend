@@ -1,0 +1,478 @@
+
+import { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SidebarItem } from "../config/sidebarConfig";
+import { Upload, X, Download } from "lucide-react";
+import api from '@/services/api'; // Use path alias for consistency
+import { toast } from '@/components/ui/use-toast'; // Corrected import to match project convention
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+
+interface ConverterPageProps {
+  config: SidebarItem;
+  supportedInputFormats: string[];
+  supportedOutputFormats: string[];
+  acceptedFileTypes: string;
+  maxFileSize?: string;
+  preselectedInputFormat?: string; // New prop
+}
+
+interface ConversionStatus {
+  id: string;
+  file: File;
+  inputFormat: string;
+  outputFormat: string;
+  status: 'pending' | 'converting' | 'completed' | 'failed';
+  downloadUrl?: string;
+  downloadFileName?: string;
+  error?: string;
+}
+
+const ConverterPage = ({
+  config,
+  supportedInputFormats,
+  supportedOutputFormats,
+  acceptedFileTypes,
+  maxFileSize = "100MB",
+  preselectedInputFormat
+}: ConverterPageProps) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [inputFormat, setInputFormat] = useState<string>(preselectedInputFormat || "");
+  const [outputFormat, setOutputFormat] = useState<string>("");
+  const [dragActive, setDragActive] = useState(false);
+  const [conversionQueue, setConversionQueue] = useState<ConversionStatus[]>([]);
+  const navigate = useNavigate();
+
+  // Effect to clean up blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      conversionQueue.forEach(item => {
+        if (item.downloadUrl && item.downloadUrl.startsWith('blob:')) {
+          window.URL.revokeObjectURL(item.downloadUrl);
+        }
+      });
+    };
+  }, [conversionQueue]);
+
+  useEffect(() => {
+    if (preselectedInputFormat && inputFormat && inputFormat !== preselectedInputFormat) {
+      const newPath = `/${inputFormat.toLowerCase()}-converter`;
+      navigate(newPath);
+    }
+  }, [inputFormat, preselectedInputFormat, navigate]);
+
+  const handleFileSelect = (file: File) => {
+    const extension = file.name.split('.').pop()?.toUpperCase();
+
+    if (preselectedInputFormat && extension !== preselectedInputFormat) {
+      toast({
+        title: "Invalid File Type",
+        description: `Please upload a ${preselectedInputFormat} file.`,
+        variant: "destructive",
+      });
+      setSelectedFile(null);
+      setInputFormat("");
+      return;
+    }
+
+    setSelectedFile(file);
+    // Auto-detect input format from file extension
+    if (extension && supportedInputFormats.includes(extension)) {
+      setInputFormat(extension);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleFileSelect(files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files[0]) {
+      handleFileSelect(files[0]);
+    }
+  };
+
+  const handleConvert = async () => {
+    if (!selectedFile || !inputFormat || !outputFormat) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a file, input format, and output format.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const conversionId = `${Date.now()}-${selectedFile.name}`;
+    const newConversion: ConversionStatus = {
+      id: conversionId,
+      file: selectedFile,
+      inputFormat,
+      outputFormat,
+      status: 'converting',
+    };
+
+    // Add the new conversion to the queue
+    setConversionQueue(prevQueue => [...prevQueue, newConversion]);
+    
+    // Reset the form
+    setSelectedFile(null);
+    setInputFormat("");
+    setOutputFormat("");
+
+    // Prepare the form data for the conversion
+    const formData = new FormData();
+    formData.append('InputFile', newConversion.file);
+    formData.append('OutputFormat', newConversion.outputFormat.toLowerCase());
+
+    // Determine the endpoint based on the conversion type
+    let conversionEndpoint = '';
+    switch (config.path) {
+      case '/video-converter':
+        conversionEndpoint = '/convert/video';
+        break;
+      case '/audio-extractor':
+      case '/mp4-to-mp3':
+        conversionEndpoint = '/convert/audio';
+        break;
+      case '/png-converter':
+      case '/jpeg-converter':
+      case '/webp-converter':
+        conversionEndpoint = '/convert/image';
+        break;
+      case '/audio-converter':
+        conversionEndpoint = '/convert/audio-general';
+        break;
+      default:
+        updateConversionStatus(conversionId, { status: 'failed', error: 'Unsupported conversion type.' });
+        return;
+    }
+
+    // Use an immediately-invoked async function to isolate this conversion
+    // from others that might be in progress
+    (async function processConversion() {
+      try {
+        const isVideoOrAudio = conversionEndpoint.includes('video') || conversionEndpoint.includes('audio');
+        const timeout = isVideoOrAudio ? 300000 : 120000;
+
+        const response = await api.post(conversionEndpoint, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: timeout,
+          responseType: 'blob'
+        });
+
+        if (response && response.data) {
+          const blob = response.data;
+          const blobUrl = window.URL.createObjectURL(blob);
+          let filename = `converted.${newConversion.outputFormat.toLowerCase()}`;
+          const contentDisposition = response.headers['content-disposition'];
+          if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename="(.+)"/i);
+            if (fileNameMatch && fileNameMatch[1]) {
+              filename = fileNameMatch[1];
+            }
+          }
+          
+          // Update only this specific conversion's status
+          updateConversionStatus(conversionId, {
+            status: 'completed',
+            downloadUrl: blobUrl,
+            downloadFileName: filename,
+          });
+          
+          toast({
+            title: "Conversion Complete",
+            description: `${newConversion.file.name} has been converted successfully.`,
+            variant: "default",
+          });
+        } else {
+          throw new Error("No response data from server");
+        }
+      } catch (error) {
+        let errorMessage = "An error occurred during conversion. Please try again.";
+        if (axios.isAxiosError(error) && error.response) {
+          errorMessage = error.response.data?.message || error.response.statusText || errorMessage;
+        } else if (axios.isAxiosError(error) && error.request) {
+          errorMessage = "No response from server. Please check your connection.";
+        } else {
+          errorMessage = (error as Error).message || errorMessage;
+        }
+        
+        // Only update this specific conversion's status as failed
+        updateConversionStatus(conversionId, { status: 'failed', error: errorMessage });
+        
+        toast({
+          title: "Conversion Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    })();
+  };
+
+  const updateConversionStatus = (id: string, updates: Partial<ConversionStatus>) => {
+    setConversionQueue(prevQueue =>
+      prevQueue.map(item => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  const handleDownload = (item: ConversionStatus) => {
+    if (item.downloadUrl && item.downloadFileName) {
+      const link = document.createElement('a');
+      link.href = item.downloadUrl;
+      link.setAttribute('download', item.downloadFileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    setInputFormat("");
+    setOutputFormat("");
+  };
+  
+  const removeConversion = (id: string) => {
+    setConversionQueue(prevQueue => prevQueue.filter(item => {
+      if (item.id === id && item.downloadUrl) {
+        window.URL.revokeObjectURL(item.downloadUrl);
+      }
+      return item.id !== id;
+    }));
+  };
+
+  const canConvert = selectedFile && inputFormat && outputFormat && inputFormat !== outputFormat;
+
+  return (
+    <>
+      <Helmet>
+        <title>{config.title}</title>
+        <meta name="description" content={config.description} />
+        <meta name="keywords" content={config.keywords} />
+        <link rel="canonical" href={config.canonical} />
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": config.title,
+            "description": config.description,
+            "url": config.canonical,
+            "applicationCategory": "MultimediaApplication",
+            "operatingSystem": "Any",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          })}
+        </script>
+      </Helmet>
+
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            {config.label}
+          </h1>
+          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+            {config.description}
+          </p>
+        </div>
+
+        {/* Ad Placeholder 1 */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 mb-8 text-center">
+          <p className="text-gray-500">Ad space here (728x90)</p>
+        </div>
+
+        {/* Main Converter Interface */}
+        <div className="bg-card rounded-lg border border-gray-800 p-6 mb-8">
+          {/* File Upload Area */}
+          <div className="space-y-6">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive 
+                  ? "border-primary bg-primary/5" 
+                  : "border-gray-600 hover:border-gray-500"
+              }`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              {selectedFile ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-3 text-white">
+                    <span className="text-lg font-medium">{selectedFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeFile}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <X size={16} />
+                    </Button>
+                  </div>
+                  <p className="text-gray-400">
+                    Size: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                  <div>
+                    <p className="text-lg text-white mb-2">
+                      Drop your file here or click to browse
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Supported formats: {preselectedInputFormat ? preselectedInputFormat : supportedInputFormats.join(", ")}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Maximum file size: {maxFileSize}
+                    </p>
+                  </div>
+                  <Input
+                      type="file"
+                      accept={preselectedInputFormat ? `image/${preselectedInputFormat.toLowerCase()}` : acceptedFileTypes}
+                      onChange={handleFileInput}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                  <Button asChild variant="outline">
+                    <label htmlFor="file-upload" className="cursor-pointer">
+                      Choose File
+                    </label>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Format Selection */}
+            {selectedFile && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Input Format Selection */}
+                <div className="space-y-3">
+                  <h3 className="text-white font-medium text-lg">From:</h3>
+                  <Select value={inputFormat} onValueChange={setInputFormat} disabled={!!preselectedInputFormat}>
+                    <SelectTrigger className="h-12 text-lg bg-background border-gray-600">
+                      <SelectValue placeholder="Select input format" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-gray-600">
+                      {supportedInputFormats.map((format) => (
+                        <SelectItem key={format} value={format} className="text-white hover:bg-gray-700">
+                          {format}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Output Format Selection */}
+                <div className="space-y-3">
+                  <h3 className="text-white font-medium text-lg">To:</h3>
+                  <Select value={outputFormat} onValueChange={setOutputFormat}>
+                    <SelectTrigger className="h-12 text-lg bg-background border-gray-600">
+                      <SelectValue placeholder="Select output format" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-gray-600">
+                      {supportedOutputFormats.map((format) => (
+                        <SelectItem key={format} value={format} className="text-white hover:bg-gray-700">
+                          {format}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Convert Button */}
+            {selectedFile && (
+              <Button 
+                onClick={handleConvert}
+                disabled={!canConvert}
+                className="w-full h-12 text-lg font-semibold"
+              >
+                {canConvert 
+                    ? `Convert ${inputFormat} to ${outputFormat}` 
+                    : "Select different formats to convert"
+                }
+              </Button>
+            )}
+          </div>
+
+          {/* Results area */}
+          <div className="mt-6 min-h-[100px] border-2 border-dashed border-gray-700 rounded-lg p-4 space-y-4">
+            {conversionQueue.length > 0 ? (
+              conversionQueue.map((item) => (
+                <div key={item.id} className="flex items-center justify-between bg-gray-800 p-3 rounded-lg">
+                  <div className="flex-grow">
+                    <p className="text-white font-medium">{item.file.name}</p>
+                    <p className="text-sm text-gray-400">
+                      {item.status === 'converting' && 'Processing...'}
+                      {item.status === 'completed' && 'Ready to download'}
+                      {item.status === 'failed' && `Failed: ${item.error}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item.status === 'completed' && (
+                      <Button onClick={() => handleDownload(item)} size="sm" variant="outline" className="bg-primary/10 hover:bg-primary/20">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => removeConversion(item.id)}>
+                      <X size={16} />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center">Converted files will appear here</p>
+            )}
+          </div>
+        </div>
+
+        {/* Ad Placeholder 2 */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 mb-8 text-center">
+          <p className="text-gray-500">Ad space here (300x250)</p>
+        </div>
+
+        {/* SEO Content */}
+        <div className="bg-card rounded-lg border border-gray-800 p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            How to use {config.label}
+          </h2>
+          <div className="text-gray-300 space-y-3">
+            <p>1. Upload your file by dragging and dropping or clicking "Choose File"</p>
+            <p>2. Select the input format (auto-detected from file extension)</p>
+            <p>3. Choose the output format you want to convert to</p>
+            <p>4. Click the "Convert" button to start the conversion process</p>
+            <p>5. Wait for the conversion to complete</p>
+            <p>6. Download your converted file once it's ready</p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default ConverterPage;
+

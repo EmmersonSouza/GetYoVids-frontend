@@ -1,0 +1,50 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://getyovids.com/sitemap.xml
+
+# Crawl delay (optional - be respectful to server)
+Crawl-delay: 1
+
+# Disallow admin or private areas (if any)
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# Allow all downloader and converter pages
+Allow: /youtube-downloader
+Allow: /tiktok-downloader
+Allow: /instagram-downloader
+Allow: /twitter-downloader
+Allow: /vimeo-downloader
+Allow: /facebook-downloader
+Allow: /twitch-downloader
+Allow: /reddit-downloader
+Allow: /pornhub-downloader
+Allow: /xvideos-downloader
+Allow: /xhamster-downloader
+Allow: /redgifs-downloader
+Allow: /youporn-downloader
+Allow: /spankbang-downloader
+Allow: /png-converter
+Allow: /jpeg-converter
+Allow: /webp-converter
+Allow: /gif-converter
+Allow: /bmp-converter
+Allow: /tiff-converter
+Allow: /tga-converter
+Allow: /exr-converter
+Allow: /heif-converter
+Allow: /ico-converter
+Allow: /psd-converter
+Allow: /mp4-converter
+Allow: /avi-converter
+Allow: /mov-converter
+Allow: /webm-converter
+Allow: /mkv-converter
+Allow: /mp3-converter
+Allow: /wav-converter
+Allow: /flac-converter
+Allow: /aac-converter
+Allow: /ogg-converter 

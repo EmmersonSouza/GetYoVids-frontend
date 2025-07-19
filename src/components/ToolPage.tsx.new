@@ -1,0 +1,715 @@
+import React, { useState, useEffect, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { SidebarItem } from "../config/sidebarConfig";
+import { 
+  Plus, 
+  X, 
+  Download, 
+  Loader2, 
+  AlertCircle, 
+  ExternalLink, 
+  CheckCircle2, 
+  RefreshCw, 
+  ListMusic,
+  Minus,
+  PlusIcon,
+  MinusIcon
+} from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { isUrlValidForService } from "../utils/urlUtils";
+import { downloadService } from "../services/api";
+import { signalRService } from "../services/signalr";
+import { toast } from "./ui/use-toast";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel
+} from "./ui/select";
+import { Progress } from "./ui/progress";
+
+type DownloadStatus = 'pending' | 'downloading' | 'completed' | 'error' | 'processing';
+
+type FormatType = 'MP4' | 'MP3' | 'WEBM' | 'M4A' | 'MOV';
+
+interface VideoFormat {
+  format_id: string;
+  ext: string;
+  resolution: string;
+  filesize?: number;
+  filesize_str?: string;
+  vcodec: string;
+  acodec: string;
+  note?: string;
+}
+
+interface VideoInfo {
+  url: string;
+  title: string;
+  duration?: number;
+  thumbnail?: string;
+  formats: VideoFormat[];
+  best_audio?: VideoFormat;
+  best_video?: VideoFormat;
+  best_combined?: VideoFormat;
+  _type?: string; // 'playlist' | 'video' | 'audio'
+  entries?: VideoInfo[]; // For playlists
+}
+
+interface UrlItem {
+  id: string;
+  value: string;
+  error?: string;
+  isPlaylist?: boolean;
+  playlistId?: string;
+  playlistTitle?: string;
+  suggestedPath?: string;
+  domain?: string;
+  loading?: boolean;
+  selectedFormat?: VideoFormat;
+  message?: string;
+  availableQualities?: string[];
+  selectedQuality?: string;
+}
+
+interface DownloadItem {
+  id: string;
+  url: string;
+  status: DownloadStatus;
+  progress: number;
+  error?: string;
+  downloadUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  format?: string;
+  quality?: string;
+  formatInfo?: VideoFormat;
+  availableFormats?: VideoInfo;
+  isPlaylistItem?: boolean;
+  playlistTitle?: string;
+  title?: string;
+}
+
+interface ToolPageProps {
+  title: string;
+  description: string;
+  placeholder?: string;
+  buttonText?: string;
+  showFormatOptions?: boolean;
+}
+
+export const ToolPage: React.FC<ToolPageProps> = ({
+  title,
+  description,
+  placeholder = "Paste your video URL here...",
+  buttonText = "Download it",
+  showFormatOptions = true
+}) => {
+  // State management
+  const [urls, setUrls] = useState<UrlItem[]>(() => [{ 
+    id: Math.random().toString(36).substring(2, 11), 
+    value: '', 
+    isPlaylist: false 
+  }]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [playlistInfo, setPlaylistInfo] = useState<VideoInfo | null>(null);
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  const [selectedFormat, setSelectedFormat] = useState<FormatType>('MP4');
+  const [selectedQuality, setSelectedQuality] = useState<string>('best');
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentPath = location.pathname.replace(/^\//, '');
+
+  // Format options for the format selector
+  const formatOptions = [
+    { value: 'MP4', label: 'MP4 (Video)' },
+    { value: 'MP3', label: 'MP3 (Audio Only)' },
+    { value: 'WEBM', label: 'WebM (Video)' },
+    { value: 'M4A', label: 'M4A (Audio Only)' },
+    { value: 'MOV', label: 'MOV (Video)' },
+  ];
+
+  // Check if any URL is valid for submission
+  const hasValidUrls = urls.some(url => 
+    url.value.trim() !== '' && !url.error && isUrlValidForService(url.value, currentPath)
+  );
+
+  // Function to check if a URL is a YouTube playlist
+  const isYoutubePlaylist = (url: string) => {
+    if (!url) return { isPlaylist: false, playlistId: null };
+    
+    // Check for YouTube playlist URLs
+    const playlistRegex = /(?:youtube\.com|youtu\.be).*?[?&](?:list)=([^&]+)/i;
+    const match = url.match(playlistRegex);
+    
+    if (match && match[1]) {
+      return { isPlaylist: true, playlistId: match[1] };
+    }
+    
+    return { isPlaylist: false, playlistId: null };
+  };
+
+  // Handle URL input change
+  const handleUrlChange = useCallback(async (id: string, value: string) => {
+    setUrls(prev => prev.map(url => 
+      url.id === id 
+        ? { ...url, value, loading: true, error: undefined } 
+        : url
+    ));
+    
+    try {
+      // Check if URL is valid for current service
+      if (!value || !isUrlValidForService(value, currentPath)) {
+        setUrls(prev => prev.map(url => 
+          url.id === id 
+            ? { ...url, loading: false, error: value ? `Invalid URL for ${currentPath}` : undefined } 
+            : url
+        ));
+        return;
+      }
+      
+      // Check if it's a YouTube playlist
+      const { isPlaylist } = isYoutubePlaylist(value);
+
+      // Fetch available video qualities for this URL
+      await fetchVideoQualities(id, value);
+      
+      setUrls(prev => prev.map(url => 
+        url.id === id 
+          ? { ...url, isPlaylist, loading: false } 
+          : url
+      ));
+    } catch (error) {
+      console.error('Error processing URL:', error);
+      setUrls(prev => prev.map(url => 
+        url.id === id 
+          ? { ...url, loading: false, error: 'Error processing URL' } 
+          : url
+      ));
+    }
+  }, [currentPath]);
+
+  // Fetch video formats and qualities when URL changes
+  const fetchVideoQualities = async (urlId: string, urlValue: string) => {
+    if (!urlValue) return;
+    
+    try {
+      // Derive platform route (e.g., "youtube-downloader" from "youtube" route)
+      const platformRoute = `${currentPath}-downloader`;
+      
+      // Fetch available formats from backend
+      const qualities = await downloadService.fetchVideoQualities(urlValue, platformRoute);
+      
+      // Update URL item with available qualities
+      setUrls(prev => prev.map(url => 
+        url.id === urlId 
+          ? { 
+              ...url, 
+              availableQualities: qualities,
+              selectedQuality: 'best' // Default to best quality
+            } 
+          : url
+      ));
+    } catch (error) {
+      console.error('Error fetching video qualities:', error);
+      // Don't set an error, as this is an enhancement and shouldn't block the main download functionality
+    }
+  };
+  
+  // Handle quality selection change for a specific URL
+  const handleQualityChange = useCallback((urlId: string, quality: string) => {
+    setUrls(prev => prev.map(url => 
+      url.id === urlId 
+        ? { ...url, selectedQuality: quality } 
+        : url
+    ));
+  }, []);
+
+  // Add a new URL input field
+  const addUrlField = useCallback(() => {
+    setUrls(prev => [
+      ...prev, 
+      { 
+        id: Math.random().toString(36).substring(2, 11), 
+        value: '', 
+        isPlaylist: false 
+      }
+    ]);
+  }, []);
+
+  // Remove a URL input field
+  const removeUrlField = useCallback((id: string) => {
+    setUrls(prev => {
+      // Don't remove if it's the only URL field
+      if (prev.length === 1) return prev;
+      return prev.filter(url => url.id !== id);
+    });
+  }, []);
+
+  // Connect to SignalR for batch download progress
+  useEffect(() => {
+    const connect = async () => {
+      await signalRService.startConnection();
+      
+      // Add listeners for batch download progress and completion
+      signalRService.addBatchProgressListener(handleBatchProgress);
+      signalRService.addBatchCompletedListener(handleBatchCompleted);
+      signalRService.addBatchErrorListener(handleBatchError);
+    };
+    
+    connect();
+    
+    return () => {
+      // Clean up SignalR connection
+      signalRService.removeBatchProgressListener(handleBatchProgress);
+      signalRService.removeBatchCompletedListener(handleBatchCompleted);
+      signalRService.removeBatchErrorListener(handleBatchError);
+    };
+  }, []);
+
+  // Handle format selection change
+  const handleFormatChange = useCallback((value: FormatType) => {
+    setSelectedFormat(value);
+  }, []);
+
+  // Handle file download from download item
+  const handleFileDownload = useCallback((item: DownloadItem) => {
+    if (item.downloadUrl) {
+      window.open(item.downloadUrl, '_blank');
+    }
+  }, []);
+
+  // Handle batch download progress update from SignalR
+  const handleBatchProgress = (progress: any) => {
+    if (progress.batchId !== batchId) return;
+    
+    setDownloadProgress(progress.overallProgress);
+  };
+
+  // Handle batch download completion from SignalR
+  const handleBatchCompleted = (result: any) => {
+    if (result.batchId !== batchId) return;
+    
+    setIsLoading(false);
+    setDownloadProgress(0);
+    setBatchId(null);
+    
+    toast({ title: "Batch download completed", description: "All files have been downloaded successfully." });
+  };
+
+  // Handle batch download error from SignalR
+  const handleBatchError = (error: string) => {
+    setIsLoading(false);
+    setDownloadProgress(0);
+    setBatchId(null);
+    
+    toast({ title: "Batch download error", description: error, variant: "destructive" });
+  };
+
+  // Helper to generate unique IDs
+  const generateUniqueId = (): string => {
+    return Math.random().toString(36).substring(2, 11);
+  };
+
+  // Add a helper function to retry a single download
+  const retryDownload = async (item: DownloadItem) => {
+    // Find the original URL that was used for this download
+    const originalUrl = urls.find(u => u.value === item.url);
+    
+    // Create a new download item with the same URL but reset status
+    const newDownload: DownloadItem = {
+      id: generateUniqueId(),
+      url: item.url,
+      status: 'pending',
+      progress: 0,
+      format: selectedFormat,
+      quality: originalUrl?.selectedQuality || 'best' // Use the selected quality for this URL if available
+    };
+    
+    // Add the new download item
+    setDownloads(prev => [...prev.filter(d => d.id !== item.id), newDownload]);
+    
+    try {
+      // If we don't have quality info for this URL yet, try to fetch it
+      if (originalUrl && !originalUrl.availableQualities) {
+        await fetchVideoQualities(originalUrl.id, originalUrl.value);
+      }
+      
+      // Get the platform route from current path
+      const platformRoute = `${currentPath}-downloader`;
+      
+      // Get the quality to use for this download
+      const qualityToUse = originalUrl?.selectedQuality || 'best';
+      
+      // Start the download
+      const result = await downloadService.downloadMedia(
+        item.url, 
+        selectedFormat, 
+        platformRoute,
+        qualityToUse // Pass the selected quality
+      );
+      
+      // Update the download item with the result
+      setDownloads(prev => prev.map(d => 
+        d.id === newDownload.id 
+          ? { 
+              ...d, 
+              status: 'completed', 
+              downloadUrl: result.fileUrl, 
+              fileName: result.fileName,
+              quality: qualityToUse // Record which quality was used
+            } 
+          : d
+      ));
+      
+      toast({ title: "Download complete", description: `${result.fileName} has been downloaded.` });
+    } catch (error) {
+      console.error('Download error:', error);
+      
+      // Update the download item with the error
+      setDownloads(prev => prev.map(d => 
+        d.id === newDownload.id 
+          ? { 
+              ...d, 
+              status: 'error', 
+              error: error instanceof Error ? error.message : 'Unknown error' 
+            } 
+          : d
+      ));
+      
+      toast({ 
+        title: "Download failed", 
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isLoading || !hasValidUrls) return;
+    
+    setIsLoading(true);
+    
+    // Filter out URLs with errors
+    const validUrls = urls.filter(url => 
+      url.value.trim() !== '' && !url.error && isUrlValidForService(url.value, currentPath)
+    );
+    
+    if (validUrls.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      const platformRoute = `${currentPath}-downloader`;
+      
+      // Process each URL sequentially
+      for (const urlItem of validUrls) {
+        // Create a new download item
+        const downloadItem: DownloadItem = {
+          id: generateUniqueId(),
+          url: urlItem.value,
+          status: 'downloading',
+          progress: 0,
+          format: selectedFormat,
+          quality: urlItem.selectedQuality || 'best' // Use URL-specific quality if available
+        };
+        
+        // Add the download item to the list
+        setDownloads(prev => [...prev, downloadItem]);
+        
+        try {
+          // Download the media
+          const result = await downloadService.downloadMedia(
+            urlItem.value, 
+            selectedFormat, 
+            platformRoute,
+            urlItem.selectedQuality || 'best' // Pass the selected quality
+          );
+          
+          // Update the download item with the result
+          setDownloads(prev => prev.map(item => 
+            item.id === downloadItem.id 
+              ? { 
+                  ...item, 
+                  status: 'completed', 
+                  downloadUrl: result.fileUrl, 
+                  fileName: result.fileName,
+                  quality: urlItem.selectedQuality || 'best' // Record which quality was used
+                } 
+              : item
+          ));
+          
+          toast({ title: "Download complete", description: `${result.fileName} has been downloaded.` });
+        } catch (error) {
+          console.error('Download error:', error);
+          
+          // Update the download item with the error
+          setDownloads(prev => prev.map(item => 
+            item.id === downloadItem.id 
+              ? { 
+                  ...item, 
+                  status: 'error', 
+                  error: error instanceof Error ? error.message : 'Unknown error' 
+                } 
+              : item
+          ));
+          
+          toast({ 
+            title: "Download failed", 
+            description: error instanceof Error ? error.message : 'Unknown error',
+            variant: "destructive"
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error during download:', error);
+      toast({ 
+        title: "Download error", 
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Render URL input fields
+  const renderUrlInputs = useCallback(() => (
+    <div className="space-y-2">
+      <Label htmlFor="url" className="text-white">URL</Label>
+      <div className="space-y-3">
+        {urls.map((url, index) => (
+          <div key={url.id} className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-grow">
+                <Input
+                  id={`url-${index}`}
+                  value={url.value}
+                  onChange={(e) => handleUrlChange(url.id, e.target.value)}
+                  placeholder={placeholder}
+                  className="pr-8"
+                />
+                {url.loading && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  </div>
+                )}
+                {url.error && (
+                  <div className="text-red-400 text-sm mt-1 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {url.error}
+                  </div>
+                )}
+              </div>
+              {urls.length > 1 && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeUrlField(url.id)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            
+            {/* Quality selector for this URL if available */}
+            {url.availableQualities && url.availableQualities.length > 0 && (
+              <div className="ml-2 flex items-center gap-2">
+                <Label htmlFor={`quality-${url.id}`} className="text-sm text-gray-400 whitespace-nowrap">
+                  Quality:
+                </Label>
+                <Select 
+                  value={url.selectedQuality || 'best'}
+                  onValueChange={(value) => handleQualityChange(url.id, value)}
+                >
+                  <SelectTrigger id={`quality-${url.id}`} className="h-8 text-xs">
+                    <SelectValue placeholder="Select quality" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="best">Best Quality</SelectItem>
+                    {url.availableQualities.map((quality, i) => (
+                      <SelectItem key={`${url.id}-${i}`} value={quality}>
+                        {quality}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        className="text-sm flex items-center"
+        onClick={addUrlField}
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Add another URL
+      </Button>
+    </div>
+  ), [urls, placeholder, handleUrlChange, removeUrlField, addUrlField, handleQualityChange]);
+
+  // Render download queue
+  const renderDownloadQueue = useCallback(() => {
+    if (downloads.length === 0) return null;
+
+    return (
+      <div className="mt-8 space-y-4">
+        <h3 className="text-lg font-medium">Download Queue</h3>
+        <div className="space-y-2">
+          {downloads.map((download) => (
+            <div
+              key={download.id}
+              className="border rounded-lg p-4 flex flex-col space-y-2"
+            >
+              <div className="flex justify-between items-center">
+                <span className="font-medium truncate">
+                  {download.fileName || 'Download'}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {download.status === 'completed' ? 'Completed' : 
+                   download.status === 'error' ? 'Error' : 'Downloading...'}
+                </span>
+              </div>
+              {download.progress > 0 && download.progress < 100 && (
+                <Progress value={download.progress} className="h-2" />
+              )}
+              {download.error && (
+                <p className="text-sm text-destructive">{download.error}</p>
+              )}
+              {download.status === 'completed' && download.downloadUrl && (
+                <Button
+                  size="sm"
+                  onClick={() => handleFileDownload(download)}
+                  className="mt-2"
+                >
+                  Download
+                </Button>
+              )}
+              {download.status === 'error' && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => retryDownload(download)}
+                  className="mt-2"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }, [downloads, handleFileDownload, retryDownload]);
+
+  // Render format and quality selectors
+  const renderFormatSelectors = useCallback(() => {
+    if (!showFormatOptions) return null;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="space-y-2">
+          <Label htmlFor="format">Format</Label>
+          <Select value={selectedFormat} onValueChange={handleFormatChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select format" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="MP4">MP4 (Video)</SelectItem>
+                <SelectItem value="MP3">MP3 (Audio Only)</SelectItem>
+                <SelectItem value="WEBM">WebM (Video)</SelectItem>
+                <SelectItem value="M4A">M4A (Audio Only)</SelectItem>
+                <SelectItem value="MOV">MOV (Video)</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    );
+  }, [showFormatOptions, selectedFormat, handleFormatChange]);
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <Helmet>
+        <title>{title}</title>
+        <meta name="description" content={description} />
+      </Helmet>
+
+      <div className="max-w-4xl mx-auto">
+        <div className="space-y-6">
+          {/* Ad Placeholder 1 */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-8 text-center">
+            <p className="text-gray-500">Ad space here (728x90)</p>
+          </div>
+
+          <h1 className="text-3xl font-bold text-white mb-4">
+            {currentPath === 'youtube' ? 'YouTube' : 
+             currentPath === 'tiktok' ? 'TikTok' : 
+             currentPath === 'instagram' ? 'Instagram' : 
+             currentPath === 'twitter' ? 'Twitter' : 
+             currentPath === 'facebook' ? 'Facebook' : 'Media'} Downloader
+          </h1>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-4">
+              {renderUrlInputs()}
+
+              {renderFormatSelectors()}
+              <Button 
+                type="submit" 
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors duration-200"
+                disabled={isLoading || !hasValidUrls}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  buttonText
+                )}
+              </Button>
+            </div>
+          </form>
+
+          {/* Download Queue */}
+          {renderDownloadQueue()}
+          
+          {/* Ad Placeholder 2 */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 mb-8 text-center">
+            <p className="text-gray-500">Ad space here (300x250)</p>
+          </div>
+
+          {/* SEO Content */}
+          <div className="bg-card rounded-lg border border-gray-800 p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">
+              How to use this tool
+            </h2>
+            <div className="text-gray-300 space-y-3">
+              {/* SEO content */}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,616 @@
+import React, { useState, useEffect, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { SidebarItem } from "../config/sidebarConfig";
+import { 
+  Plus, 
+  X, 
+  Download, 
+  Loader2, 
+  AlertCircle, 
+  ExternalLink, 
+  CheckCircle2, 
+  RefreshCw, 
+  ListMusic,
+  Minus,
+  PlusIcon,
+  MinusIcon
+} from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { isUrlValidForService } from "../utils/urlUtils";
+import { downloadService } from "../services/api";
+import { signalRService } from "../services/signalr";
+import { toast } from "./ui/use-toast";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel
+} from "./ui/select";
+import { Progress } from "./ui/progress";
+
+type DownloadStatus = 'pending' | 'downloading' | 'completed' | 'error' | 'processing';
+
+type FormatType = 'MP4' | 'MP3' | 'WEBM' | 'M4A' | 'MOV' | 'MKV' | 'FLAC' | 'WAV' | 'OGG';
+
+interface QualityOption {
+  formatCode: string;
+  label: string;
+  resolution?: string;
+  fileSize?: number;
+  isAudioOnly: boolean;
+  isVideoOnly: boolean;
+}
+
+interface FormatInfo {
+  title: string;
+  duration?: number;
+  thumbnailUrl?: string;
+  formats: string[]; // e.g., ["mp4", "webm", "mp3"]
+  qualities: QualityOption[];
+  isPlaylist: boolean;
+  playlistCount?: number;
+  errorMessage?: string;
+}
+
+interface VideoInfo {
+  url: string;
+  title: string;
+  duration?: number;
+  thumbnail?: string;
+  formats: QualityOption[]; // This will now be a list of QualityOption
+  best_audio?: QualityOption;
+  best_video?: QualityOption;
+  best_combined?: QualityOption;
+  _type?: string; // 'playlist' | 'video' | 'audio'
+  entries?: VideoInfo[]; // For playlists
+}
+
+interface UrlItem {
+  id: string;
+  value: string;
+  error?: string;
+  isPlaylist?: boolean;
+  playlistId?: string;
+  playlistTitle?: string;
+  suggestedPath?: string;
+  domain?: string;
+  loading?: boolean;
+  selectedFormat?: string;
+  message?: string;
+  removeWatermark?: boolean;
+}
+
+interface DownloadItem {
+  id: string;
+  url: string;
+  status: DownloadStatus;
+  progress: number;
+  error?: string;
+  downloadUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  format?: string;
+  quality?: string;
+  formatInfo?: FormatInfo;
+  availableFormats?: VideoInfo;
+  isPlaylistItem?: boolean;
+  playlistTitle?: string;
+  title?: string;
+  removeWatermark?: boolean;
+}
+
+interface ToolPageProps {
+  title: string;
+  description: string;
+  placeholder?: string;
+  buttonText?: string;
+  showFormatOptions?: boolean;
+}
+
+export const ToolPage: React.FC<ToolPageProps> = ({
+  title,
+  description,
+  placeholder = "Paste your video URL here...",
+  buttonText = "Download it",
+  showFormatOptions = true
+}: ToolPageProps) => {
+  // State management
+  const [urls, setUrls] = useState<UrlItem[]>(() => [{ 
+    id: Math.random().toString(36).substring(2, 11), 
+    value: '', 
+    isPlaylist: false 
+  }]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [playlistInfo, setPlaylistInfo] = useState<VideoInfo | null>(null);
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  const [selectedFormat, setSelectedFormat] = useState<string>('mp4');
+  const [availableFormatsAndQualities, setAvailableFormatsAndQualities] = useState<FormatInfo | null>(() => ({
+    title: "",
+    formats: ["mp4", "mp3", "webm", "m4a", "mov", "mkv", "flac", "wav", "ogg"], // Common formats
+    qualities: [], // Add empty qualities array to satisfy the interface
+    isPlaylist: false,
+  }));
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentPath = location.pathname.replace(/^\//, '');
+
+  // Add a new URL field
+  const addUrlField = useCallback(() => {
+    setUrls([...urls, { id: generateUniqueId(), value: '', isPlaylist: false }]);
+  }, [urls]);
+
+  
+
+  // Handle URL input change
+  const handleUrlChange = useCallback((id: string, value: string) => {
+    setUrls(prevUrls => {
+      const newUrls = prevUrls.map(url => {
+        if (url.id === id) {
+          const isValid = !value || isUrlValidForService(value, currentPath);
+          return {
+            ...url,
+            value,
+            error: isValid ? undefined : `This URL is not supported on the ${currentPath || 'current'} downloader`,
+            loading: !!value
+          };
+        }
+        return url;
+      });
+      return newUrls;
+    });
+  }, [currentPath]);
+
+  // Format options for the format selector
+  
+
+  // Check if any URL is valid for submission
+  const hasValidUrls = urls.some(url => 
+    url.value.trim() !== '' && !url.error && isUrlValidForService(url.value, currentPath)
+  );
+
+  // Move isYoutubePlaylist to the top, before handleUrlChange
+  const isYoutubePlaylist = (url: string) => {
+    if (!url) return { isPlaylist: false, playlistId: null };
+    const youtubePlaylistRegex = /(?:youtube\.com\/.*[?&]list=|youtu\.be\/.*list=)([^&\s]+)/;
+    const match = url.match(youtubePlaylistRegex);
+    return {
+      isPlaylist: !!match,
+      playlistId: match ? match[1] : null
+    };
+  };
+
+  
+
+  
+
+  // Remove a URL input field
+  const removeUrlField = useCallback((id: string) => {
+    if (urls.length > 1) {
+      setUrls(prevUrls => prevUrls.filter(url => url.id !== id));
+    }
+  }, [urls]);
+
+  // Handle format selection change
+  const handleFormatChange = useCallback((value: string) => {
+    setSelectedFormat(value as FormatType);
+    // Reset quality when format changes
+  }, []);
+
+  
+
+  // Handle file download
+  const handleFileDownload = useCallback(async (download: DownloadItem) => {
+    try {
+      if (!download.downloadUrl) return;
+      
+      const response = await fetch(download.downloadUrl);
+      if (!response.ok) throw new Error('Failed to download file');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = download.fileName || 'download';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to download file',
+        variant: 'destructive',
+      });
+    }
+  }, []);
+
+  // In useEffect for SignalR, remove all direct references to signalRService.connection
+  // and use only public methods. Also, use correct method names and signatures.
+  useEffect(() => {
+    if (!batchId) return;
+
+    const handleBatchProgress = (progress: { percentage: number }) => {
+      const percent = Math.round(progress.percentage || 0);
+      setDownloadProgress(percent);
+    };
+
+    const handleBatchCompleted = (result: { success: boolean; message?: string }) => {
+      setDownloadProgress(100);
+      toast({
+        title: 'Batch Download Complete',
+        description: result.success ? 'Successfully downloaded playlist.' : (result.message || 'Some items failed.'),
+        variant: result.success ? 'default' : 'destructive',
+      });
+      setBatchId(null);
+      signalRService.removeBatchListeners(batchId);
+    };
+
+    const handleBatchError = (error: string) => {
+      toast({
+        title: 'Batch Error',
+        description: error,
+        variant: 'destructive',
+      });
+      signalRService.removeBatchListeners(batchId);
+    };
+
+    signalRService.onBatchProgress(batchId, handleBatchProgress);
+    signalRService.onBatchError(batchId, handleBatchError);
+    signalRService.onBatchCompleted(batchId, handleBatchCompleted);
+
+    return () => {
+      signalRService.removeBatchListeners(batchId);
+    };
+  }, [batchId]);
+
+  // Helper to generate unique IDs
+  const generateUniqueId = (): string => {
+    return Math.random().toString(36).substring(2, 11);
+  };
+
+  // Add a helper function to retry a single download
+  const retryDownload = async (item: DownloadItem) => {
+    if (!item.url) return;
+    
+    try {
+      // Update download status to show we're downloading
+      setDownloads(prev => 
+        prev.map(i => 
+          i.id === item.id
+            ? { ...i, status: 'downloading', progress: 0, error: undefined }
+            : i
+        )
+      );
+      
+      
+      
+      // Create a progress update handler
+      const progressHandler = (progress: number) => {
+        // Update download progress
+        setDownloads(prev => 
+          prev.map(i => 
+            i.id === item.id
+              ? { ...i, progress }
+              : i
+          )
+        );
+      };
+      
+      // Start the download with directDownload: true
+      const platformRoute = `${currentPath}-downloader`;
+      const format = item.format || selectedFormat.toLowerCase();
+      const quality = 'best';
+      const options = {
+        removeWatermark: item.removeWatermark || false,
+        directDownload: true // Enable direct file download
+      };
+      
+      // Call downloadMedia with separate arguments (not an object)
+      try {
+        const result = await downloadService.downloadMedia(
+          platformRoute,
+          item.url,
+          format,
+          quality,
+          progressHandler,
+          options
+        );
+        // Process the result
+        if (result instanceof Blob) {
+          // Create a download URL for the blob but don't automatically download
+          const url = window.URL.createObjectURL(result);
+          const fileExt = format || 'mp4';
+          
+          // Update download status to completed with downloadUrl available
+          setDownloads(prev => 
+            prev.map(i => 
+              i.id === item.id
+                ? { 
+                    ...i, 
+                    progress: 100, 
+                    status: 'completed',
+                    downloadUrl: url,
+                    fileName: `download.${fileExt}`
+                  }
+                : i
+            )
+          );
+          
+          toast({
+            title: 'Download Ready',
+            description: 'File is ready for download',
+            variant: "default",
+          });
+        } else {
+          throw new Error('Failed to download file');
+        }
+      } catch (error) {
+        // Update only this specific download to error state
+        setDownloads(prev => 
+          prev.map(i => 
+            i.id === item.id
+              ? { 
+                  ...i, 
+                  status: 'error', 
+                  error: (error as Error)?.message || "An unexpected error occurred." 
+                }
+              : i
+          )
+        );
+        
+        toast({
+          title: "Download Error",
+          description: (error as Error)?.message || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
+    };
+  
+          // Handle playlist download
+          const downloadId = generateUniqueId();
+          const newItem: DownloadItem = {
+            id: downloadId,
+            url: urlItem.value,
+            status: 'processing',
+            progress: 0,
+            format: selectedFormat.toLowerCase(),
+            quality: 'best',
+            title: `Playlist: ${urlItem.playlistId}`,
+            isPlaylistItem: true,
+          };
+          
+          // Add to downloads queue
+          setDownloads(prev => [...prev, newItem]);
+
+          try {
+            // Call backend for playlist download
+            const result = await downloadService.downloadPlaylist(
+              urlItem.value,
+              selectedFormat.toLowerCase(),
+              urlItem.playlistId
+            );
+
+            if (result && result.success) {
+              // Update only this specific download item's status
+              setDownloads(prev =>
+                prev.map(i =>
+                  i.id === downloadId
+                    ? { 
+                        ...i, 
+                        status: 'completed', 
+                        downloadUrl: result.downloadUrl, 
+                        fileName: result.fileName 
+                      }
+                    : i
+                )
+              );
+              
+              toast({
+                title: 'Playlist Processing Complete',
+                description: 'Playlist has been processed and is ready for download.',
+              });
+            } else {
+              throw new Error(result?.error || 'Failed to process playlist');
+            }
+          } catch (error) {
+            // Update only this specific download to error state
+            setDownloads(prev => 
+              prev.map(i => 
+                i.id === downloadId
+                  ? { 
+                      ...i, 
+                      status: 'error', 
+                      error: (error as Error)?.message || "Failed to process playlist" 
+                    }
+                  : i
+              )
+            );
+            
+            toast({
+              title: "Playlist Processing Error",
+              description: (error as Error)?.message || "Failed to process playlist",
+              variant: "destructive",
+            });
+          }
+        } else {
+          // Handle single video download
+          const downloadId = generateUniqueId();
+          const newItem: DownloadItem = {
+            id: downloadId,
+            url: urlItem.value,
+            status: 'downloading',
+            progress: 0,
+            format: selectedFormat.toLowerCase(),
+            quality: 'best',
+            title: urlItem.value // Use URL initially, will be updated if title is fetched
+          };
+          
+          // Add to downloads queue
+          setDownloads(prev => [...prev, newItem]);
+          
+          try {
+            // Set up download parameters
+            const platformRoute = `${currentPath}-downloader`;
+            const format = selectedFormat.toLowerCase();
+            const quality = 'best';
+            const options = {
+              removeWatermark: urlItem.removeWatermark || false,
+              directDownload: false // Change to false to control the download process
+            };
+            
+            // Create a progress update handler for this specific download
+            const progressHandler = (progress: number) => {
+              setDownloads(prev => 
+                prev.map(i => 
+                  i.id === downloadId
+                    ? { ...i, progress }
+                    : i
+                )
+              );
+            };
+            
+            // Initiate the download using the service
+            const result = await downloadService.downloadMedia(
+              platformRoute,
+              urlItem.value,
+              format,
+              quality,
+              progressHandler,
+              options
+            );
+            
+            // Handle the result
+            if (result instanceof Blob) {
+              // Create a download URL for the blob but don't trigger download automatically
+              const url = window.URL.createObjectURL(result);
+              const fileExt = format || 'mp4';
+              
+              // Update download status to completed with downloadUrl available
+              setDownloads(prev => 
+                prev.map(i => 
+                  i.id === downloadId
+                    ? { 
+                        ...i, 
+                        progress: 100, 
+                        status: 'completed',
+                        downloadUrl: url,
+                        fileName: `download.${fileExt}`
+                      }
+                    : i
+                )
+              );
+              
+              toast({
+                title: 'Download Ready',
+                description: 'File is ready for download',
+                variant: "default",
+              });
+            } else {
+              throw new Error('Failed to download file');
+            }
+          } catch (error) {
+            // Update only this specific download to error state
+            setDownloads(prev => 
+              prev.map(i => 
+                i.id === downloadId
+                  ? { 
+                      ...i, 
+                      status: 'error', 
+                      error: (error as Error)?.message || "An unexpected error occurred." 
+                    }
+                  : i
+              )
+            );
+            
+            toast({
+              title: "Download Error",
+              description: (error as Error)?.message || "An unexpected error occurred.",
+              variant: "destructive",
+            });
+          }
+        }
+      } catch (outerError) {
+        console.error('Outer download error:', outerError);
+        toast({
+          title: "Download Error",
+          description: "An unexpected error occurred while processing your request.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    // Execute the function for this URL
+    return processUrlDownload();
+  }));
+  
+  setIsLoading(false);
+};
+
+// ...
+                      <Progress value={item.progress} className="h-1" />
+                    </div>
+                  )}
+                  
+                  {item.status === 'downloading' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-primary-foreground">
+                      {item.progress > 0 ? `${Math.round(item.progress)}%` : 'Processing...'}
+                    </span>
+                  </div>
+                )}
+                  
+                  {item.status === 'error' && (
+                    <div className="mt-2">
+                      <p className="text-red-400 text-sm mb-2">{item.error}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => retryDownload(item)}
+                        className="mt-2"
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Retry
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {item.status === 'completed' && (
+                    <div className="mt-2 text-xs text-gray-400">
+                      Downloaded as {item.format} - {item.quality || 'best quality'}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Ad Placeholder 2 */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 mb-8 text-center">
+          <p className="text-gray-500">Ad space here (300x250)</p>
+        </div>
+
+        {/* SEO Content */}
+        <div className="bg-card rounded-lg border border-gray-800 p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            How to use this tool
+          </h2>
+          <div className="text-gray-300 space-y-3">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+}

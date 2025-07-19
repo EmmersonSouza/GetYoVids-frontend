@@ -1,0 +1,51 @@
+[plugin:vite:react-swc] × Expected a semicolon
+     ╭─[C:/Users/Emmerson Souza/Desktop/Repos/AppsMerda/characterforge-imagix-2392/frontend/src/components/ToolPage.tsx:377:1]
+ 374 │           variant: "destructive",
+ 375 │         });
+ 376 │       }
+ 377 │     };
+     ·      ▲
+ 378 │   
+ 379 │           // Handle playlist download
+ 380 │           const downloadId = generateUniqueId();
+     ╰────
+  × Expected a semicolon
+     ╭─[C:/Users/Emmerson Souza/Desktop/Repos/AppsMerda/characterforge-imagix-2392/frontend/src/components/ToolPage.tsx:445:1]
+ 442 │               variant: "destructive",
+ 443 │             });
+ 444 │           }
+ 445 │         } else {
+     ·           ────
+ 446 │           // Handle single video download
+ 447 │           const downloadId = generateUniqueId();
+ 448 │           const newItem: DownloadItem = {
+     ╰────
+  × await isn't allowed in non-async function
+     ╭─[C:/Users/Emmerson Souza/Desktop/Repos/AppsMerda/characterforge-imagix-2392/frontend/src/components/ToolPage.tsx:483:1]
+ 480 │             };
+ 481 │             
+ 482 │             // Initiate the download using the service
+ 483 │             const result = await downloadService.downloadMedia(
+     ·                                  ───────────────
+ 484 │               platformRoute,
+ 485 │               urlItem.value,
+ 486 │               format,
+     ╰────
+  × Expression expected
+     ╭─[C:/Users/Emmerson Souza/Desktop/Repos/AppsMerda/characterforge-imagix-2392/frontend/src/components/ToolPage.tsx:542:1]
+ 539 │             });
+ 540 │           }
+ 541 │         }
+ 542 │       } catch (outerError) {
+     ·       ─
+ 543 │         console.error('Outer download error:', outerError);
+ 544 │         toast({
+ 545 │           title: "Download Error",
+     ╰────
+
+
+Caused by:
+    Syntax Error
+C:/Users/Emmerson Souza/Desktop/Repos/AppsMerda/characterforge-imagix-2392/frontend/src/components/ToolPage.tsx:377:1
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.ts.

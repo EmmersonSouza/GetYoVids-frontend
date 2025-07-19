@@ -1,0 +1,22 @@
+import ConverterPage from "../components/ConverterPage";
+import { sidebarConfig } from "../config/sidebarConfig";
+
+const PngConverter = () => {
+  const config = sidebarConfig[2].items[0].children?.find(item => item.path === "/png-converter");
+
+  if (!config) {
+    return <div>Configuration for PNG Converter not found.</div>;
+  }
+  
+  return (
+    <ConverterPage 
+      config={config}
+      supportedInputFormats={["PNG"]}
+      supportedOutputFormats={["JPG", "JPEG", "WEBP", "GIF", "BMP", "TIFF", "TGA", "EXR", "ICO"]}
+      acceptedFileTypes="image/png,.png"
+      maxFileSize="50MB"
+    />
+  );
+};
+
+export default PngConverter;
