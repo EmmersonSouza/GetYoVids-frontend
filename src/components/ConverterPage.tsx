@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { FileUpload } from "@/components/ui/file-upload";
-import api from "@/services/api";
+import { downloadService } from "@/services/api";
+import { getApi } from "@/services/api";
 import { X, Download } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { SidebarItem } from "@/config/sidebarConfig";
@@ -158,6 +159,7 @@ const ConverterPage = ({
         formData.append("Quality", "high");
 
         // Send to API with correct endpoint
+        const api = await getApi();
         const response = await api.post(endpoint, formData, {
           headers: {
             "Content-Type": "multipart/form-data",

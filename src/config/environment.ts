@@ -10,11 +10,13 @@ export const environment = {
       apiUrl: 'http://185.165.169.153:5000/api',
       signalRUrl: 'http://185.165.169.153:5000'
     },
-    // Production environment
+    // Production environment - URLs will be detected dynamically
     production: {
-      baseUrl: 'https://DOMAIN_PLACEHOLDER', // Will be updated by deployment script
-      apiUrl: 'https://DOMAIN_PLACEHOLDER/api', // Will be updated by deployment script
-      signalRUrl: 'https://DOMAIN_PLACEHOLDER' // Will be updated by deployment script
+      // These are fallback URLs if dynamic detection fails
+      fallbackUrls: [
+        'https://185.165.169.153:5001',
+        'http://185.165.169.153:5000'
+      ]
     }
   },
   
@@ -38,13 +40,25 @@ export const environment = {
 // Helper function to get current environment config
 export const getCurrentConfig = () => {
   const isDev = import.meta.env.DEV;
+  
+  if (isDev) {
+    return {
+      ...environment.api.development,
+      ...environment.features,
+      ...environment.app
+    };
+  }
+  
+  // For production, return fallback URLs
   return {
-    ...environment.api[isDev ? 'development' : 'production'],
+    baseUrl: environment.api.production.fallbackUrls[0],
+    apiUrl: `${environment.api.production.fallbackUrls[0]}/api`,
+    signalRUrl: environment.api.production.fallbackUrls[0],
     ...environment.features,
     ...environment.app
   };
 };
 
-// Export individual configs for easy access
+// Export individual configs for easy access (fallback values)
 export const apiConfig = getCurrentConfig();
 export const { baseUrl, apiUrl, signalRUrl } = apiConfig; 

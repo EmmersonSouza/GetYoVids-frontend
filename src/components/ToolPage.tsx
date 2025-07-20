@@ -263,16 +263,7 @@ export const ToolPage: React.FC<ToolPageProps> = ({
     url.value.trim() !== '' && !url.error && isUrlValidForService(url.value, currentPath)
   );
 
-  // Move isYoutubePlaylist to the top, before handleUrlChange
-  const isYoutubePlaylist = (url: string) => {
-    if (!url) return { isPlaylist: false, playlistId: null };
-    const youtubePlaylistRegex = /(?:youtube\.com\/.*[?&]list=|youtu\.be\/.*list=)([^&\s]+)/;
-    const match = url.match(youtubePlaylistRegex);
-    return {
-      isPlaylist: !!match,
-      playlistId: match ? match[1] : null
-    };
-  };
+
 
   
 
@@ -382,29 +373,11 @@ export const ToolPage: React.FC<ToolPageProps> = ({
           title: 'Download Ready',
           description: `${item.title} is ready for download`,
         });
-      } else if (result.cloudStorage) {
-        // Handle cloud storage result
-        setDownloads(prev =>
-          prev.map(d =>
-            d.id === item.id
-              ? {
-                  ...d,
-                  progress: 100,
-                  status: 'completed',
-                  downloadUrl: result.publicUrl,
-                  fileName: result.fileName,
-                  fileSize: result.fileSize,
-                  cloudStorage: true,
-                  fileKey: result.fileKey,
-                  expirationTime: result.expirationTime
-                }
-              : d
-          )
-        );
-
+      } else {
+        // Handle other result types
         toast({
-          title: 'Uploaded to Cloud Storage',
-          description: `${item.title} has been uploaded to cloud storage`,
+          title: 'Download Ready',
+          description: `${item.title} is ready for download`,
         });
       }
     } catch (error) {
@@ -889,9 +862,12 @@ export const ToolPage: React.FC<ToolPageProps> = ({
             console.warn('🎬 - playlistResult.error:', playlistResult?.error);
             console.warn('🎬 - Full playlistResult object:', playlistResult);
             
+            const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
+            const contentType = isPlaylist ? 'playlist' : 'video';
+            
             toast({
-              title: `No Videos Found`,
-              description: `No videos could be found in this YouTube playlist`,
+              title: `No ${contentType.charAt(0).toUpperCase() + contentType.slice(1)} Found`,
+              description: `No ${contentType} could be found at this YouTube URL`,
               variant: 'destructive',
             });
           }
@@ -911,244 +887,112 @@ export const ToolPage: React.FC<ToolPageProps> = ({
             console.error('🎬 Error request:', error.request);
           }
           
+          const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
+          const contentType = isPlaylist ? 'playlist' : 'video';
+          
           toast({
-            title: `YouTube Playlist Error`,
-            description: `Failed to get videos from YouTube playlist. Please check the URL and try again.`,
+            title: `YouTube ${contentType} Error`,
+            description: `Failed to get ${contentType} from YouTube. Please check the URL and try again.`,
             variant: 'destructive',
           });
         }
         continue; // Skip regular download processing for YouTube videos and playlists
       }
 
-      const { isPlaylist, playlistId } = isYoutubePlaylist(urlItem.value);
+      // Handle regular downloads for non-YouTube, non-multi-media platforms
+      const downloadId = generateUniqueId();
+      const newItem: DownloadItem = {
+        id: downloadId,
+        url: urlItem.value,
+        status: 'downloading',
+        progress: 0,
+        format: selectedFormat.toLowerCase(),
+        quality: 'best',
+        title: urlItem.value // Use URL initially, will be updated if title is fetched
+      };
+
+      // Add to downloads queue
+      setDownloads(prev => [...prev, newItem]);
 
       try {
-        if (isPlaylist && playlistId) {
-          // Handle playlist download
-          const downloadId = generateUniqueId();
-          const newItem: DownloadItem = {
-            id: downloadId,
-            url: urlItem.value,
-            status: 'processing',
-            progress: 0,
-            format: selectedFormat.toLowerCase(),
-            quality: 'best',
-            title: `Playlist: ${playlistId}`,
-            isPlaylistItem: true,
-          };
+        // Set up download parameters
+        const platformRoute = `${currentPath}`;
+        const format = selectedFormat.toLowerCase();
+        const quality = 'best';
+        const options = {
+          removeWatermark: urlItem.removeWatermark || false,
+          directDownload: true, // Use direct download like retry function
+          useCloudStorage: false // Don't force cloud storage for regular downloads
+        };
+        console.log('ToolPage.tsx: handleDownload - options.directDownload:', options.directDownload);
 
-          // Add to downloads queue
-          setDownloads(prev => [...prev, newItem]);
+        // Create a progress update handler for this specific download
+        const progressHandler = (progress: number) => {
+          setDownloads(prev =>
+            prev.map(i =>
+              i.id === downloadId
+                ? { ...i, progress }
+                : i
+            )
+          );
+        };
 
-          try {
-            // For now, handle playlists as regular downloads since the multi-step playlist flow is complex
-            // TODO: Implement proper playlist flow with createPlaylistDownload -> downloadPlaylist
-            const result = await downloadService.downloadMedia(
-              currentPath, // platformRoute
-              urlItem.value,
-              selectedFormat.toLowerCase(),
-              'best',
-              undefined, // onProgress
-              { directDownload: true }
-            );
+        // Initiate the download using the service
+        const result = await downloadService.downloadMedia(
+          platformRoute,
+          urlItem.value,
+          format,
+          quality,
+          progressHandler,
+          options
+        );
 
-            if (result && result.success) {
-              // Update only this specific download item's status
-              setDownloads(prev =>
-                prev.map(i =>
-                  i.id === downloadId
-                    ? {
-                        ...i,
-                        status: 'completed',
-                        downloadUrl: result.downloadUrl,
-                        fileName: result.fileName
-                      }
-                    : i
-                )
-              );
+        // Handle the result
+        if (result instanceof Blob) {
+          // Create a download URL for the blob but don't trigger download automatically
+          const url = window.URL.createObjectURL(result);
+          const fileExt = format || 'mp4';
 
-              toast({
-                title: 'Playlist Processing Complete',
-                description: 'Playlist has been processed and is ready for download.',
-              });
-            } else {
-              throw new Error(result?.error || 'Failed to process playlist');
-            }
-          } catch (error) {
-            // Update only this specific download to error state
-            setDownloads(prev =>
-              prev.map(i =>
-                i.id === downloadId
-                  ? {
-                      ...i,
-                      status: 'error',
-                      error: (error as Error)?.message || "Failed to process playlist"
-                    }
-                  : i
-              )
-            );
+          // Update download status to completed with downloadUrl available
+          setDownloads(prev =>
+            prev.map(i =>
+              i.id === downloadId
+                ? {
+                    ...i,
+                    progress: 100,
+                    status: 'completed',
+                    downloadUrl: url,
+                    fileName: `download.${fileExt}`
+                  }
+                : i
+            )
+          );
 
-            toast({
-              title: "Playlist Processing Error",
-              description: (error as Error)?.message || "Failed to process playlist",
-              variant: "destructive",
-            });
-          }
+          toast({
+            title: 'Download Ready',
+            description: 'File is ready for download',
+            variant: "default",
+          });
         } else {
-          // Handle single video download
-          const downloadId = generateUniqueId();
-          const newItem: DownloadItem = {
-            id: downloadId,
-            url: urlItem.value,
-            status: 'downloading',
-            progress: 0,
-            format: selectedFormat.toLowerCase(),
-            quality: 'best',
-            title: urlItem.value // Use URL initially, will be updated if title is fetched
-          };
-
-          // Add to downloads queue
-          setDownloads(prev => [...prev, newItem]);
-
-          try {
-            // Set up download parameters
-            const platformRoute = `${currentPath}`;
-            const format = selectedFormat.toLowerCase();
-            const quality = 'best';
-            const options = {
-              removeWatermark: urlItem.removeWatermark || false,
-              directDownload: true, // Use direct download like retry function
-              useCloudStorage: false // Don't force cloud storage for TikTok
-            };
-            console.log('ToolPage.tsx: handleDownload - options.directDownload:', options.directDownload);
-
-            // Create a progress update handler for this specific download
-            const progressHandler = (progress: number) => {
-              setDownloads(prev =>
-                prev.map(i =>
-                  i.id === downloadId
-                    ? { ...i, progress }
-                    : i
-                )
-              );
-            };
-
-            // Initiate the download using the service
-            const result = await downloadService.downloadMedia(
-              platformRoute,
-              urlItem.value,
-              format,
-              quality,
-              progressHandler,
-              options
-            );
-
-            // Handle the result
-            if (result instanceof Blob) {
-              // Create a download URL for the blob but don't trigger download automatically
-              const url = window.URL.createObjectURL(result);
-              const fileExt = format || 'mp4';
-
-              // Update download status to completed with downloadUrl available
-              setDownloads(prev =>
-                prev.map(i =>
-                  i.id === downloadId
-                    ? {
-                        ...i,
-                        progress: 100,
-                        status: 'completed',
-                        downloadUrl: url,
-                        fileName: `download.${fileExt}`
-                      }
-                    : i
-                )
-              );
-
-              toast({
-                title: 'Download Ready',
-                description: 'File is ready for download',
-                variant: "default",
-              });
-            } else if (result.cloudStorage) {
-              // Handle cloud storage result
-              setDownloads(prev =>
-                prev.map(i =>
-                  i.id === downloadId
-                    ? {
-                        ...i,
-                        progress: 100,
-                        status: 'completed',
-                        downloadUrl: result.publicUrl,
-                        fileName: result.fileName,
-                        fileSize: result.fileSize,
-                        cloudStorage: true,
-                        fileKey: result.fileKey,
-                        expirationTime: result.expirationTime
-                      }
-                    : i
-                )
-              );
-
-              toast({
-                title: 'Uploaded to Cloud Storage',
-                description: `${result.fileName} has been uploaded to cloud storage`,
-                variant: "default",
-              });
-            } else if (result.data) {
-              // Handle JSON response with download data
-              const downloadData = result.data;
-              const downloadUrl = downloadData.CloudStorageUrl || downloadData.DownloadUrl;
-              
-              setDownloads(prev =>
-                prev.map(i =>
-                  i.id === downloadId
-                    ? {
-                        ...i,
-                        progress: 100,
-                        status: 'completed',
-                        downloadUrl: downloadUrl,
-                        fileName: downloadData.FileName || 'download',
-                        cloudStorage: downloadData.StorageType === 'cloud',
-                        fileKey: downloadData.FileId
-                      }
-                    : i
-                )
-              );
-
-              toast({
-                title: 'Download Ready',
-                description: `File is ready for download (${downloadData.StorageType} storage)`,
-                variant: "default",
-              });
-            } else {
-              throw new Error('Failed to download file');
-            }
-          } catch (error) {
-            // Update only this specific download to error state
-            setDownloads(prev =>
-              prev.map(i =>
-                i.id === downloadId
-                  ? {
-                      ...i,
-                      status: 'error',
-                      error: (error as Error)?.message || "An unexpected error occurred."
-                    }
-                  : i
-              )
-            );
-
-            toast({
-              title: "Download Error",
-              description: (error as Error)?.message || "An unexpected error occurred.",
-              variant: "destructive",
-            });
-          }
+          throw new Error('Failed to download file');
         }
-      } catch (outerError) {
-        console.error('Outer download error:', outerError);
+      } catch (error) {
+        // Update only this specific download to error state
+        setDownloads(prev =>
+          prev.map(i =>
+            i.id === downloadId
+              ? {
+                  ...i,
+                  status: 'error',
+                  error: (error as Error)?.message || "An unexpected error occurred."
+                }
+              : i
+          )
+        );
+
         toast({
           title: "Download Error",
-          description: "An unexpected error occurred while processing your request.",
+          description: (error as Error)?.message || "An unexpected error occurred.",
           variant: "destructive",
         });
       }

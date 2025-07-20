@@ -1,6 +1,6 @@
 import * as signalR from '@microsoft/signalr';
 import { toast } from '../components/ui/use-toast';
-import { signalRUrl } from '../config/environment';
+import { connectionDetector } from './connectionDetector';
 
 interface BatchProgressData {
   percentage: number;
@@ -16,7 +16,7 @@ interface BatchCompletionResult {
 
 class SignalRService {
   private connection: signalR.HubConnection | null = null;
-  private baseUrl: string = signalRUrl;
+  private baseUrl: string = '';
   private isConnecting: boolean = false;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
@@ -31,10 +31,14 @@ class SignalRService {
     this.initializeConnection();
   }
 
-  private initializeConnection() {
+  private async initializeConnection() {
     if (this.connection) {
       return;
     }
+
+    // Get the best available SignalR URL
+    const connection = await connectionDetector.detectBestConnection();
+    this.baseUrl = connection.bestSignalRUrl;
 
     this.connection = new signalR.HubConnectionBuilder()
       .withUrl(`${this.baseUrl}/hubs/downloads`)
@@ -117,13 +121,13 @@ class SignalRService {
 
   public async startConnection() {
     if (!this.connection) {
-      this.initializeConnection();
+      await this.initializeConnection();
     }
 
     if (this.connection?.state === signalR.HubConnectionState.Disconnected) {
       try {
         await this.connection.start();
-        console.log('SignalR Connected');
+        console.log('SignalR Connected to:', this.baseUrl);
       } catch (err) {
         console.error('Error starting SignalR connection:', err);
         throw err;

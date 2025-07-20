@@ -24,8 +24,8 @@ if (!fs.existsSync(envFile)) {
 try {
   let content = fs.readFileSync(envFile, 'utf8');
   
-  // Replace the placeholder with the actual domain
-  content = content.replace(/DOMAIN_PLACEHOLDER/g, domain);
+  // No domain updates needed - using IP only
+  console.log('ℹ️  Using IP-only configuration - no domain updates needed');
   
   // Write back to file
   fs.writeFileSync(envFile, content);
