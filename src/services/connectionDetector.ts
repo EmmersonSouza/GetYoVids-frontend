@@ -41,6 +41,33 @@ class ConnectionDetector {
     return '185.165.169.153'; // Default to IP
   }
 
+  // Check if hathormodel.com is available
+  private async checkHathormodelAvailability(): Promise<boolean> {
+    try {
+      const response = await fetch('https://hathormodel.com/health', {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(3000) // 3 second timeout
+      });
+      return response.ok;
+    } catch (error) {
+      console.log('hathormodel.com not available:', error);
+      return false;
+    }
+  }
+
+  // Check if we're in a production environment
+  private isProductionEnvironment(): boolean {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Production if we're on HTTPS and not localhost
+    return protocol === 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1';
+  }
+
   // Test a single connection
   private async testConnection(url: string, type: string): Promise<ConnectionTest> {
     const startTime = Date.now();
@@ -121,12 +148,49 @@ class ConnectionDetector {
     console.log('🚀 Starting dynamic connection detection...');
     
     const domain = this.getCurrentDomain();
+    const isProduction = this.isProductionEnvironment();
     
-    // Define all possible connection URLs (IP only)
-    const connections = [
-      { url: 'https://185.165.169.153:5001', type: 'https-ip' },
-      { url: 'http://185.165.169.153:5000', type: 'http-ip' }
-    ];
+    console.log(`🌍 Environment: ${isProduction ? 'Production' : 'Development'}`);
+    console.log(`🌐 Current domain: ${domain}`);
+    console.log(`🔒 Protocol: ${window.location.protocol}`);
+    
+    // Check if hathormodel.com is available first
+    const hathormodelAvailable = await this.checkHathormodelAvailability();
+    
+    if (hathormodelAvailable) {
+      console.log('🎯 hathormodel.com is available - using as primary backend');
+      return {
+        bestApiUrl: 'https://hathormodel.com/api',
+        bestSignalRUrl: 'https://hathormodel.com',
+        connectionType: 'hathormodel-domain',
+        allResults: [{
+          url: 'https://hathormodel.com',
+          type: 'domain',
+          success: true,
+          responseTime: 0
+        }]
+      };
+    }
+    
+    // Define connection URLs based on environment
+    let connections: Array<{ url: string; type: string }> = [];
+    
+    if (isProduction) {
+      // In production (HTTPS), prioritize HTTPS connections to avoid mixed content
+      connections = [
+        { url: 'https://185.165.169.153:5001', type: 'https-ip' },
+        // Only try HTTP if we're not on HTTPS to avoid mixed content
+        ...(window.location.protocol === 'http:' ? [{ url: 'http://185.165.169.153:5000', type: 'http-ip' }] : [])
+      ];
+    } else {
+      // In development, try both
+      connections = [
+        { url: 'https://185.165.169.153:5001', type: 'https-ip' },
+        { url: 'http://185.165.169.153:5000', type: 'http-ip' }
+      ];
+    }
+
+    console.log(`🔗 Testing connections:`, connections.map(c => `${c.type}: ${c.url}`));
 
     // Test all connections in parallel
     const testPromises = connections.map(conn => 
@@ -139,14 +203,31 @@ class ConnectionDetector {
     const successfulConnections = results.filter(r => r.success);
     
     if (successfulConnections.length === 0) {
-      console.warn('⚠️ No connections successful, using first URL as fallback');
-      const fallbackUrl = connections[0].url;
-      return {
-        bestApiUrl: `${fallbackUrl}/api`,
-        bestSignalRUrl: fallbackUrl,
-        connectionType: connections[0].type,
-        allResults: results
-      };
+      console.warn('⚠️ No connections successful, using fallback strategy');
+      
+      // In production, if HTTPS fails, we can't fall back to HTTP due to mixed content
+      if (isProduction && window.location.protocol === 'https:') {
+        console.error('❌ Production HTTPS environment: Cannot fall back to HTTP due to mixed content policy');
+        console.log('💡 Solution: Set up proper SSL certificate on your backend or use a domain with Let\'s Encrypt');
+        
+        // Use HTTPS as fallback even if it failed (user will need to accept certificate)
+        const fallbackUrl = 'https://185.165.169.153:5001';
+        return {
+          bestApiUrl: `${fallbackUrl}/api`,
+          bestSignalRUrl: fallbackUrl,
+          connectionType: 'https-ip-fallback',
+          allResults: results
+        };
+      } else {
+        // In development or HTTP environment, use first URL as fallback
+        const fallbackUrl = connections[0].url;
+        return {
+          bestApiUrl: `${fallbackUrl}/api`,
+          bestSignalRUrl: fallbackUrl,
+          connectionType: `${connections[0].type}-fallback`,
+          allResults: results
+        };
+      }
     }
 
     // Sort by priority: https-ip > http-ip, then by response time
@@ -185,7 +266,10 @@ class ConnectionDetector {
     return {
       hasResult: !!this.connectionResult,
       isDetecting: this.isDetecting,
-      currentConnection: this.connectionResult
+      currentConnection: this.connectionResult,
+      isProduction: this.isProductionEnvironment(),
+      protocol: window.location.protocol,
+      hostname: window.location.hostname
     };
   }
 }
