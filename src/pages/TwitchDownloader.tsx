@@ -12,7 +12,7 @@ const TwitchDownloader = () => {
       <ToolPage 
         title={config.title}
         description={config.description}
-        placeholder="Paste Twitch URL here (e.g., https://www.twitch.tv/videos/...)"
+        placeholder="Paste Twitch URL here (e.g., https://www.twitch.tv/clips/...)"
         buttonText="Download"
         showFormatOptions={true}
       />
@@ -57,24 +57,24 @@ const TwitchDownloader = () => {
         {/* How-to Guide */}
         <div className="mt-8 bg-card rounded-lg border border-gray-800 p-8">
           <h2 className="text-2xl font-bold text-white mb-6">
-            How to Download Twitch Videos
+            How to Download Twitch Clips and Highlights
           </h2>
           <div className="grid md:grid-cols-2 gap-8 text-gray-300">
             <div>
               <h3 className="text-lg font-semibold text-white mb-3">Step 1: Copy Twitch URL</h3>
-              <p>Navigate to the Twitch video you want to download and copy the URL from your browser's address bar or use the share button to copy the link.</p>
+              <p>Navigate to the Twitch clip or highlight you want to download and copy the URL from your browser's address bar or use the share button to copy the link.</p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-white mb-3">Step 2: Paste and Select Format</h3>
-              <p>Paste the Twitch URL into our downloader above and select your preferred format (MP4, MP3, etc.) and quality. We support HD and Full HD quality.</p>
+              <p>Paste the Twitch URL into our downloader above and select your preferred format (MP4, MP3, etc.) and quality. We support HD and Full HD quality for clips and highlights.</p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Step 3: Download Your Video</h3>
+              <h3 className="text-lg font-semibold text-white mb-3">Step 3: Download Your Clip</h3>
               <p>Click the download button and wait for processing. Our cloud-based system ensures fast downloads without server overload. You'll get a direct download link.</p>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-white mb-3">Step 4: Enjoy Your Content</h3>
-              <p>Your Twitch video is now ready for offline viewing. All files are automatically cleaned up after 24 hours for privacy.</p>
+              <p>Your Twitch clip or highlight is now ready for offline viewing. All files are automatically cleaned up after 24 hours for privacy.</p>
             </div>
           </div>
         </div>
@@ -107,7 +107,7 @@ const TwitchDownloader = () => {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-white mb-2">Can I download Twitch clips?</h3>
-              <p className="text-gray-300">Yes! Our Twitch downloader supports downloading Twitch clips, highlights, and past broadcasts in high quality.</p>
+              <p className="text-gray-300">Yes! Our Twitch downloader supports downloading Twitch clips and highlights in high quality. VODs are not supported to prevent large file downloads.</p>
             </div>
           </div>
         </div>

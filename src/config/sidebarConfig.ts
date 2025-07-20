@@ -77,9 +77,9 @@ export const sidebarConfig: SidebarSection[] = [
         path: "/twitch-downloader",
         label: "Twitch Downloader",
         icon: "Download",
-        title: "Download Twitch VODs and Clips - Free Twitch Downloader",
-        description: "Download Twitch VODs, clips, and highlights. Free Twitch video downloader.",
-        keywords: "twitch downloader, download twitch vods, twitch clips downloader, save twitch videos",
+        title: "Download Twitch Clips and Highlights - Free Twitch Downloader",
+        description: "Download Twitch clips, and highlights. Free Twitch video downloader.",
+        keywords: "twitch downloader, download twitch clips, twitch highlights downloader, save twitch videos",
         canonical: "https://getyovids.com/twitch-downloader"
       },
       {
