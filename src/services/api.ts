@@ -59,24 +59,20 @@ const platformMap: Record<string, string> = {
 
 // Get API base URL from environment or use default
 const getApiBaseUrl = () => {
-  // Check for global variable defined in vite.config.ts
-  if (typeof __API_BASE_URL__ !== 'undefined') {
-    return __API_BASE_URL__;
+  // Check if we're in development or production
+  if (import.meta.env.DEV) {
+    // Development: use HTTP for local development
+    return 'http://185.165.169.153:5000/api';
   }
   
-  // Check for environment variable first
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
-  
-  // Always use server IP (both development and production)
+  // Production: use HTTPS for security
   return 'https://185.165.169.153:5001/api';
 };
 
 // Create axios instance with base config for the new C# backend
 const api: AxiosInstance = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 300000, // 5 minutes
+  timeout: 600000, // 10 minutes for video processing
   headers: {
     'Content-Type': 'application/json',
   },
@@ -506,7 +502,10 @@ export const downloadService = {
       };
       console.log('🎬 API: Sending single video request payload:', requestPayload);
       
-      const response = await api.post('/download/youtube', requestPayload);
+      // Use a longer timeout specifically for video downloads
+      const response = await api.post('/download/youtube', requestPayload, {
+        timeout: 600000 // 10 minutes for video processing
+      });
       
       console.log('🎬 API: Single video response received:', response);
       const data = response.data || response;

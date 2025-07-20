@@ -37,7 +37,7 @@ import AdSpace from "./AdSpace";
 import { MonetizedButton } from "./MonetizedButton";
 import { getPlatformTypeFromPath } from "../utils/platformConfig";
 import { MonetizationInfo } from "./MonetizationInfo";
-import { MonetizationDebug } from "./MonetizationDebug";
+// import { MonetizationDebug } from "./MonetizationDebug";
 
 type DownloadStatus = 'pending' | 'downloading' | 'completed' | 'error' | 'processing';
 
@@ -158,6 +158,7 @@ export const ToolPage: React.FC<ToolPageProps> = ({
   const [playlistInfo, setPlaylistInfo] = useState<VideoInfo | null>(null);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [selectedFormat, setSelectedFormat] = useState<string>('mp4');
+  const [monetizationKey, setMonetizationKey] = useState(0);
   const [availableFormatsAndQualities, setAvailableFormatsAndQualities] = useState<FormatInfo | null>(() => ({
     title: "",
     formats: ["mp4", "mp3", "webm", "m4a", "mov", "mkv", "flac", "wav", "ogg", "jpg", "png", "webp", "gif"], // Common formats including images
@@ -452,6 +453,21 @@ export const ToolPage: React.FC<ToolPageProps> = ({
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
+      
+      toast({
+        title: 'Downloaded!',
+        description: `${download.fileName || 'File'} saved to your downloads folder`,
+      });
+      
+      // Reset monetization after successful file download to require 2 clicks for next download
+      console.log('🔄 Resetting monetization after file download completed');
+      setTimeout(() => {
+        localStorage.removeItem('monetization_click_count');
+        localStorage.removeItem('monetization_is_complete');
+        localStorage.removeItem('monetization_platform_type');
+        localStorage.removeItem('monetization_is_conversion');
+        setMonetizationKey(prev => prev + 1);
+      }, 100); // Small delay to ensure download completes
     } catch (error) {
       console.error('Download failed:', error);
       toast({
@@ -509,8 +525,11 @@ export const ToolPage: React.FC<ToolPageProps> = ({
   // Helper to resolve download URLs - converts relative backend URLs to absolute URLs
   const resolveDownloadUrl = (url: string): string => {
     if (url.startsWith('/api/')) {
-      // Use the backend base URL (without the /api suffix since the URL already includes it)
-      return `http://localhost:5000${url}`;
+      // Use the same base URL logic as the API service
+      const baseUrl = import.meta.env.DEV 
+        ? 'http://185.165.169.153:5000'  // Development: HTTP
+        : 'https://185.165.169.153:5001'; // Production: HTTPS
+      return `${baseUrl}${url}`;
     }
     return url;
   };
@@ -590,6 +609,13 @@ export const ToolPage: React.FC<ToolPageProps> = ({
             description: 'File is ready for download',
             variant: "default",
           });
+          
+          // Reset monetization after successful retry download
+          console.log('🔄 Resetting monetization after retry download');
+          localStorage.removeItem('monetization_click_count');
+          localStorage.removeItem('monetization_is_complete');
+          localStorage.removeItem('monetization_platform_type');
+          localStorage.removeItem('monetization_is_conversion');
         } else {
           throw new Error('Failed to download file');
         }
@@ -993,8 +1019,8 @@ export const ToolPage: React.FC<ToolPageProps> = ({
             const quality = 'best';
             const options = {
               removeWatermark: urlItem.removeWatermark || false,
-              directDownload: false, // Always use cloud storage (Wasabi)
-              useCloudStorage: true
+              directDownload: true, // Use direct download like retry function
+              useCloudStorage: false // Don't force cloud storage for TikTok
             };
             console.log('ToolPage.tsx: handleDownload - options.directDownload:', options.directDownload);
 
@@ -1070,6 +1096,32 @@ export const ToolPage: React.FC<ToolPageProps> = ({
                 description: `${result.fileName} has been uploaded to cloud storage`,
                 variant: "default",
               });
+            } else if (result.data) {
+              // Handle JSON response with download data
+              const downloadData = result.data;
+              const downloadUrl = downloadData.CloudStorageUrl || downloadData.DownloadUrl;
+              
+              setDownloads(prev =>
+                prev.map(i =>
+                  i.id === downloadId
+                    ? {
+                        ...i,
+                        progress: 100,
+                        status: 'completed',
+                        downloadUrl: downloadUrl,
+                        fileName: downloadData.FileName || 'download',
+                        cloudStorage: downloadData.StorageType === 'cloud',
+                        fileKey: downloadData.FileId
+                      }
+                    : i
+                )
+              );
+
+              toast({
+                title: 'Download Ready',
+                description: `File is ready for download (${downloadData.StorageType} storage)`,
+                variant: "default",
+              });
             } else {
               throw new Error('Failed to download file');
             }
@@ -1107,6 +1159,17 @@ export const ToolPage: React.FC<ToolPageProps> = ({
     console.log('🚀 handleDownload completed');
     console.log('🚀 Final downloads state:', downloads);
     setIsLoading(false);
+    
+    // Reset monetization after successful download to require 3 clicks for next download
+    console.log('🔄 Resetting monetization after download completion');
+    setTimeout(() => {
+      localStorage.removeItem('monetization_click_count');
+      localStorage.removeItem('monetization_is_complete');
+      localStorage.removeItem('monetization_platform_type');
+      localStorage.removeItem('monetization_is_conversion');
+      setMonetizationKey(prev => prev + 1);
+      console.log('✅ Monetization reset completed');
+    }, 100); // Small delay to ensure state updates properly
   };
 
   return (
@@ -1319,24 +1382,32 @@ export const ToolPage: React.FC<ToolPageProps> = ({
               className="mt-4"
             />
 
-            {/* Debug Panel - Remove this in production */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* Debug Panel - Commented out for deployment */}
+            {/* {process.env.NODE_ENV === 'development' && (
               <MonetizationDebug 
                 platformType={getPlatformTypeFromPath(currentPath)}
               />
-            )}
+            )} */}
 
 
 
             <div className="mt-6">
               <MonetizedButton
+                key={`main-${monetizationKey}`}
                 platformType={getPlatformTypeFromPath(currentPath)}
                 originalText={buttonText}
-                onClick={handleDownload}
-                disabled={!hasValidUrls || isLoading}
+                onClick={hasValidUrls ? handleDownload : () => {
+                  toast({
+                    title: 'No URL Entered',
+                    description: 'Please enter a valid URL to download',
+                    variant: 'destructive',
+                  });
+                }}
+                disabled={isLoading}
                 loading={isLoading}
                 className="w-full"
                 size="lg"
+                hasValidUrl={hasValidUrls}
               />
             </div>
           </div>
@@ -1348,6 +1419,14 @@ export const ToolPage: React.FC<ToolPageProps> = ({
               {/* Downloads Ad Space */}
               <div className="mb-6">
                 <AdSpace type="horizontal" size="300x250" />
+              </div>
+              
+              {/* Download Queue Monetization Info */}
+              <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-sm text-blue-400 text-center">
+                  💾 <strong>Download Queue:</strong> Click download buttons 2 times to save files. 
+                  Each click triggers ads to support our free service.
+                </p>
               </div>
               
               <div className="space-y-4">
@@ -1480,10 +1559,13 @@ export const ToolPage: React.FC<ToolPageProps> = ({
                       <div className="flex items-center gap-4">
                         {item.status === 'pending' && item.isFromMultiMediaPost && (
                           <MonetizedButton
+                            key={`pending-${item.id}-${monetizationKey}`}
                             platformType={getPlatformTypeFromPath(currentPath)}
+                            isConversion={true}
                             originalText="Download"
                             onClick={() => handleItemDownload(item)}
                             size="sm"
+                            hasValidUrl={true}
                           >
                             <Download className="mr-2 h-4 w-4" />
                             Download
@@ -1491,10 +1573,13 @@ export const ToolPage: React.FC<ToolPageProps> = ({
                         )}
                         {item.status === 'completed' && item.downloadUrl && (
                           <MonetizedButton
+                            key={`completed-${item.id}-${monetizationKey}`}
                             platformType={getPlatformTypeFromPath(currentPath)}
+                            isConversion={true}
                             originalText="Download"
                             onClick={() => handleFileDownload(item)}
                             size="sm"
+                            hasValidUrl={true}
                           >
                             <Download className="mr-2 h-4 w-4" />
                             Download

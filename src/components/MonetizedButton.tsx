@@ -14,6 +14,8 @@ interface MonetizedButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon';
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
   children?: React.ReactNode;
+  hasValidUrl?: boolean;
+  onMonetizationComplete?: () => void;
 }
 
 export const MonetizedButton: React.FC<MonetizedButtonProps> = ({
@@ -26,7 +28,9 @@ export const MonetizedButton: React.FC<MonetizedButtonProps> = ({
   className = '',
   size = 'default',
   variant = 'default',
-  children
+  children,
+  hasValidUrl = true,
+  onMonetizationComplete
 }) => {
   const {
     clickCount,
@@ -39,50 +43,62 @@ export const MonetizedButton: React.FC<MonetizedButtonProps> = ({
   const handleClick = async () => {
     if (loading || disabled) return;
 
-    console.log('🔘 MonetizedButton clicked:', {
-      platformType,
-      isConversion,
-      isMonetizationComplete,
-      clickCount,
-      clicksRequired: getClicksRequired(platformType, isConversion)
-    });
-
     // If monetization is not complete, handle monetization click
     if (!isMonetizationComplete) {
       const isComplete = handleMonetizationClick(platformType, isConversion);
-      console.log('🔄 Monetization click result:', isComplete);
       if (!isComplete) {
         return; // Don't proceed with the actual action yet
+      }
+      
+      // Call the callback when monetization is complete
+      if (onMonetizationComplete) {
+        onMonetizationComplete();
       }
     }
 
     // Monetization is complete, proceed with the actual action
-    console.log('✅ Proceeding with actual action');
     if (onClick) {
       await onClick();
     }
   };
 
-  const buttonText = getButtonText(platformType, isConversion, originalText);
+  const buttonText = getButtonText(platformType, isConversion, originalText, hasValidUrl);
   const clicksRequired = getClicksRequired(platformType, isConversion);
-  const isButtonDisabled = disabled || loading || (!isMonetizationComplete && clickCount === 0);
+  const isButtonDisabled = disabled || loading;
+  
+
+  
+  // Add visual styling based on monetization state
+  const buttonVariant = isMonetizationComplete ? variant : 'outline';
+  const buttonClassName = `${className} ${!isMonetizationComplete ? 'border-yellow-500 text-yellow-500 hover:bg-yellow-500/10' : ''}`;
+  
+  // Calculate progress for visual indicator
+  const progressPercentage = isMonetizationComplete ? 100 : (clickCount / clicksRequired) * 100;
 
   return (
-    <Button
-      onClick={handleClick}
-      disabled={isButtonDisabled}
-      className={className}
-      size={size}
-      variant={variant}
-    >
-      {loading ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Please wait...
-        </>
-      ) : (
-        children || buttonText
+    <div className="relative">
+      <Button
+        onClick={handleClick}
+        disabled={isButtonDisabled}
+        className={buttonClassName}
+        size={size}
+        variant={buttonVariant}
+      >
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Please wait...
+          </>
+        ) : (
+          children || buttonText
+        )}
+      </Button>
+      
+      {/* Progress bar for monetization */}
+      {!isMonetizationComplete && !loading && (
+        <div className="absolute bottom-0 left-0 h-1 bg-yellow-500 transition-all duration-300 ease-out" 
+             style={{ width: `${progressPercentage}%` }} />
       )}
-    </Button>
+    </div>
   );
 }; 

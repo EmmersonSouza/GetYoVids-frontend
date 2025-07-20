@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { monetizationService } from '../services/monetizationService';
 
 export type PlatformType = 'adult' | 'regular';
 
@@ -81,6 +82,7 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
   }, [currentIsConversion]);
 
   const resetMonetization = useCallback(() => {
+    console.log('🔄 Resetting monetization manually');
     setClickCount(0);
     setIsMonetizationComplete(false);
     setCurrentPlatformType(null);
@@ -93,15 +95,29 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
     localStorage.removeItem(STORAGE_KEYS.IS_CONVERSION);
   }, []);
 
+  const resetAfterDownload = useCallback(() => {
+    console.log('🔄 Resetting monetization after successful download');
+    setClickCount(0);
+    setIsMonetizationComplete(false);
+    
+    // Keep the platform type and conversion type, just reset the progress
+    localStorage.removeItem(STORAGE_KEYS.CLICK_COUNT);
+    localStorage.removeItem(STORAGE_KEYS.IS_COMPLETE);
+  }, []);
+
   const handleMonetizationClick = useCallback((platformType: PlatformType, isConversion: boolean = false) => {
     // Check if we're switching platforms or conversion type
-    const isPlatformSwitch = currentPlatformType !== platformType;
+    const isPlatformSwitch = currentPlatformType !== null && currentPlatformType !== platformType;
     const isConversionSwitch = currentIsConversion !== isConversion;
     
     // Reset if switching platforms or conversion type
     if (isPlatformSwitch || isConversionSwitch) {
       setClickCount(0);
       setIsMonetizationComplete(false);
+      setCurrentPlatformType(platformType);
+      setCurrentIsConversion(isConversion);
+    } else if (currentPlatformType === null) {
+      // Initialize if this is the first time
       setCurrentPlatformType(platformType);
       setCurrentIsConversion(isConversion);
     }
@@ -115,38 +131,21 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
     const newClickCount = clickCount + 1;
     setClickCount(newClickCount);
 
-    // Open the appropriate URL in a new tab
-    const url = platformType === 'adult' ? finalConfig.adultUrl : finalConfig.regularUrl;
-    window.open(url, '_blank');
-
-    // For clean routes (regular), also inject pop-under script
-    if (platformType === 'regular') {
-      const popUnderScript = document.createElement('script');
-      popUnderScript.type = 'text/javascript';
-      popUnderScript.src = '//pl27204121.profitableratecpm.com/d0/57/c2/d057c2967ef81828dc840400a9c2c6e6.js';
-      document.head.appendChild(popUnderScript);
-    }
-    
-    // For adult routes, also inject pop-under script
-    if (platformType === 'adult') {
-      const popUnderScript = document.createElement('script');
-      popUnderScript.type = 'text/javascript';
-      popUnderScript.src = '//pl27204234.profitableratecpm.com/a2/a2/85/a2a28507a6bd2463e79401e2b296cb2c.js';
-      document.head.appendChild(popUnderScript);
-    }
+    // Execute monetization using the dedicated service
+    // This ensures both direct link AND pop-under are triggered simultaneously
+    monetizationService.executeWithRetry(platformType).catch(error => {
+      console.error('❌ Monetization execution failed:', error);
+    });
 
     // Check if monetization is complete
     if (newClickCount >= clicksRequired) {
       setIsMonetizationComplete(true);
-      console.log(`✅ Monetization complete! Required: ${clicksRequired}, Clicks: ${newClickCount}`);
-    } else {
-      console.log(`🔄 Monetization progress: ${newClickCount}/${clicksRequired} clicks`);
     }
 
     return newClickCount >= clicksRequired;
   }, [clickCount, finalConfig, currentPlatformType, currentIsConversion]);
 
-  const getButtonText = useCallback((platformType: PlatformType, isConversion: boolean = false, originalText: string = 'Download') => {
+  const getButtonText = useCallback((platformType: PlatformType, isConversion: boolean = false, originalText: string = 'Download', hasValidUrl: boolean = true) => {
     if (isMonetizationComplete) {
       return originalText;
     }
@@ -159,8 +158,9 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
 
     const clicksLeft = clicksRequired - clickCount;
     
-    if (clicksLeft > 0) {
-      return `${originalText} (${clicksLeft} clicks left)`;
+    if (clicksLeft > 0 && hasValidUrl) {
+      const action = isConversion ? 'Download' : 'Convert';
+      return `${action} (${clicksLeft} clicks to start)`;
     }
     
     return originalText;
@@ -195,6 +195,7 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
     getButtonText,
     getClicksRequired,
     resetMonetization,
+    resetAfterDownload,
     debugState,
     currentPlatformType,
     currentIsConversion
