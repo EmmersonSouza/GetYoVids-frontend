@@ -23,6 +23,7 @@ import { isUrlValidForService } from "../utils/urlUtils";
 import { downloadService } from "../services/api";
 import { signalRService } from "../services/signalr";
 import { toast } from "./ui/use-toast";
+import { baseUrl } from "../config/environment";
 import {
   Select,
   SelectTrigger,
@@ -525,10 +526,7 @@ export const ToolPage: React.FC<ToolPageProps> = ({
   // Helper to resolve download URLs - converts relative backend URLs to absolute URLs
   const resolveDownloadUrl = (url: string): string => {
     if (url.startsWith('/api/')) {
-      // Use the same base URL logic as the API service
-      const baseUrl = import.meta.env.DEV 
-        ? 'http://185.165.169.153:5000'  // Development: HTTP
-        : 'https://185.165.169.153:5001'; // Production: HTTPS
+      // Use the environment configuration
       return `${baseUrl}${url}`;
     }
     return url;

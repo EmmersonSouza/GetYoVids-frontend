@@ -1,5 +1,6 @@
 import * as signalR from '@microsoft/signalr';
 import { toast } from '../components/ui/use-toast';
+import { signalRUrl } from '../config/environment';
 
 interface BatchProgressData {
   percentage: number;
@@ -15,9 +16,7 @@ interface BatchCompletionResult {
 
 class SignalRService {
   private connection: signalR.HubConnection | null = null;
-  private baseUrl: string = import.meta.env.DEV 
-    ? 'http://185.165.169.153:5000' 
-    : 'https://185.165.169.153:5001';
+  private baseUrl: string = signalRUrl;
   private isConnecting: boolean = false;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;

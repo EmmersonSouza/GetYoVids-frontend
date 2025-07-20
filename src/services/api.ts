@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { toast } from '../components/ui/use-toast';
 import { signalRService } from './signalr';
+import { apiUrl } from '../config/environment';
 
 // Declare global variable for API base URL
 declare global {
@@ -57,16 +58,9 @@ const platformMap: Record<string, string> = {
   'spankbang-downloader': 'spankbang',
 };
 
-// Get API base URL from environment or use default
+// Get API base URL from environment configuration
 const getApiBaseUrl = () => {
-  // Check if we're in development or production
-  if (import.meta.env.DEV) {
-    // Development: use HTTP for local development
-    return 'http://185.165.169.153:5000/api';
-  }
-  
-  // Production: use HTTPS for security
-  return 'https://185.165.169.153:5001/api';
+  return apiUrl;
 };
 
 // Create axios instance with base config for the new C# backend
