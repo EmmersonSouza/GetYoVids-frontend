@@ -19,4 +19,10 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    // Define environment variables for the client
+    __API_BASE_URL__: JSON.stringify(
+      'http://185.165.169.153:5000/api'        // Always use server IP (both dev and prod)
+    ),
+  },
 }));

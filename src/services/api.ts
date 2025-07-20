@@ -2,6 +2,11 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } f
 import { toast } from '../components/ui/use-toast';
 import { signalRService } from './signalr';
 
+// Declare global variable for API base URL
+declare global {
+  const __API_BASE_URL__: string;
+}
+
 // Define API response types
 export interface ApiResponse<T = unknown> {
   data?: T;
@@ -52,9 +57,25 @@ const platformMap: Record<string, string> = {
   'spankbang-downloader': 'spankbang',
 };
 
+// Get API base URL from environment or use default
+const getApiBaseUrl = () => {
+  // Check for global variable defined in vite.config.ts
+  if (typeof __API_BASE_URL__ !== 'undefined') {
+    return __API_BASE_URL__;
+  }
+  
+  // Check for environment variable first
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // Always use server IP (both development and production)
+  return 'https://185.165.169.153:5001/api';
+};
+
 // Create axios instance with base config for the new C# backend
 const api: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:5000/api', // Updated to C# backend
+  baseURL: getApiBaseUrl(),
   timeout: 300000, // 5 minutes
   headers: {
     'Content-Type': 'application/json',

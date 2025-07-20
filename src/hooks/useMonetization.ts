@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export type PlatformType = 'adult' | 'regular';
 
@@ -18,17 +18,94 @@ const DEFAULT_CONFIG: MonetizationConfig = {
   conversionClicksRequired: 2
 };
 
+// Persistent storage keys
+const STORAGE_KEYS = {
+  CLICK_COUNT: 'monetization_click_count',
+  IS_COMPLETE: 'monetization_is_complete',
+  PLATFORM_TYPE: 'monetization_platform_type',
+  IS_CONVERSION: 'monetization_is_conversion',
+  SESSION_ID: 'monetization_session_id'
+};
+
 export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
-  const [clickCount, setClickCount] = useState(0);
-  const [isMonetizationComplete, setIsMonetizationComplete] = useState(false);
+  
+  // Generate a unique session ID for this browser session
+  const [sessionId] = useState(() => {
+    const existing = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
+    if (existing) return existing;
+    
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, newSessionId);
+    return newSessionId;
+  });
+
+  // Initialize state from localStorage
+  const [clickCount, setClickCount] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.CLICK_COUNT);
+    return stored ? parseInt(stored, 10) : 0;
+  });
+
+  const [isMonetizationComplete, setIsMonetizationComplete] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.IS_COMPLETE);
+    return stored === 'true';
+  });
+
+  const [currentPlatformType, setCurrentPlatformType] = useState<PlatformType | null>(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.PLATFORM_TYPE) as PlatformType;
+    return stored || null;
+  });
+
+  const [currentIsConversion, setCurrentIsConversion] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.IS_CONVERSION);
+    return stored === 'true';
+  });
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CLICK_COUNT, clickCount.toString());
+  }, [clickCount]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.IS_COMPLETE, isMonetizationComplete.toString());
+  }, [isMonetizationComplete]);
+
+  useEffect(() => {
+    if (currentPlatformType) {
+      localStorage.setItem(STORAGE_KEYS.PLATFORM_TYPE, currentPlatformType);
+    }
+  }, [currentPlatformType]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.IS_CONVERSION, currentIsConversion.toString());
+  }, [currentIsConversion]);
 
   const resetMonetization = useCallback(() => {
     setClickCount(0);
     setIsMonetizationComplete(false);
+    setCurrentPlatformType(null);
+    setCurrentIsConversion(false);
+    
+    // Clear localStorage
+    localStorage.removeItem(STORAGE_KEYS.CLICK_COUNT);
+    localStorage.removeItem(STORAGE_KEYS.IS_COMPLETE);
+    localStorage.removeItem(STORAGE_KEYS.PLATFORM_TYPE);
+    localStorage.removeItem(STORAGE_KEYS.IS_CONVERSION);
   }, []);
 
   const handleMonetizationClick = useCallback((platformType: PlatformType, isConversion: boolean = false) => {
+    // Check if we're switching platforms or conversion type
+    const isPlatformSwitch = currentPlatformType !== platformType;
+    const isConversionSwitch = currentIsConversion !== isConversion;
+    
+    // Reset if switching platforms or conversion type
+    if (isPlatformSwitch || isConversionSwitch) {
+      setClickCount(0);
+      setIsMonetizationComplete(false);
+      setCurrentPlatformType(platformType);
+      setCurrentIsConversion(isConversion);
+    }
+
     const clicksRequired = isConversion 
       ? finalConfig.conversionClicksRequired
       : platformType === 'adult' 
@@ -61,10 +138,13 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
     // Check if monetization is complete
     if (newClickCount >= clicksRequired) {
       setIsMonetizationComplete(true);
+      console.log(`✅ Monetization complete! Required: ${clicksRequired}, Clicks: ${newClickCount}`);
+    } else {
+      console.log(`🔄 Monetization progress: ${newClickCount}/${clicksRequired} clicks`);
     }
 
     return newClickCount >= clicksRequired;
-  }, [clickCount, finalConfig]);
+  }, [clickCount, finalConfig, currentPlatformType, currentIsConversion]);
 
   const getButtonText = useCallback((platformType: PlatformType, isConversion: boolean = false, originalText: string = 'Download') => {
     if (isMonetizationComplete) {
@@ -94,12 +174,29 @@ export const useMonetization = (config: Partial<MonetizationConfig> = {}) => {
         : finalConfig.regularClicksRequired;
   }, [finalConfig]);
 
+  // Debug function to log current state
+  const debugState = useCallback(() => {
+    console.log('🔍 Monetization Debug State:', {
+      clickCount,
+      isMonetizationComplete,
+      currentPlatformType,
+      currentIsConversion,
+      sessionId,
+      clicksRequired: currentPlatformType && currentIsConversion !== null 
+        ? getClicksRequired(currentPlatformType, currentIsConversion)
+        : 'unknown'
+    });
+  }, [clickCount, isMonetizationComplete, currentPlatformType, currentIsConversion, sessionId, getClicksRequired]);
+
   return {
     clickCount,
     isMonetizationComplete,
     handleMonetizationClick,
     getButtonText,
     getClicksRequired,
-    resetMonetization
+    resetMonetization,
+    debugState,
+    currentPlatformType,
+    currentIsConversion
   };
 }; 

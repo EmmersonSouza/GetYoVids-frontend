@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPS Backend Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            background: #28a745;
+            color: white;
+        }
+        .error {
+            background: #dc3545;
+            color: white;
+        }
+        .info {
+            background: #17a2b8;
+            color: white;
+        }
+        .loading {
+            background: #ffc107;
+            color: black;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .status-item {
+            background: #333;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .status-item.success {
+            background: #28a745;
+        }
+        .status-item.error {
+            background: #dc3545;
+        }
+        .status-item.pending {
+            background: #ffc107;
+            color: black;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 VPS Backend Connection Test</h1>
+    <p>Testing connection to: <strong>https://185.165.169.153:5001</strong></p>
+
+    <div class="test-section">
+        <h2>Quick Tests</h2>
+        <button class="test-button" onclick="runQuickTest()">🚀 Run Quick Test</button>
+        <button class="test-button" onclick="runFullTest()">🧪 Run Full Test</button>
+        <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Individual Tests</h2>
+        <button class="test-button" onclick="testConnectivity()">📡 Basic Connectivity</button>
+        <button class="test-button" onclick="testApiHealth()">🏥 API Health</button>
+        <button class="test-button" onclick="testCors()">🌐 CORS Test</button>
+        <button class="test-button" onclick="testDownload()">⬇️ Download Endpoint</button>
+        <button class="test-button" onclick="testLatency()">⏱️ Latency Test</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Status Overview</h2>
+        <div id="statusGrid" class="status-grid"></div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'https://185.165.169.153:5001';
+        let testResults = {};
+
+        function addResult(testName, success, message, data = null) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${success ? 'success' : 'error'}`;
+            
+            let content = `<strong>${testName}:</strong> ${success ? '✅ PASS' : '❌ FAIL'}<br>`;
+            content += `<strong>Message:</strong> ${message}<br>`;
+            
+            if (data) {
+                content += `<strong>Data:</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            resultDiv.innerHTML = content;
+            resultsDiv.appendChild(resultDiv);
+            
+            // Store result
+            testResults[testName] = { success, message, data };
+            updateStatusGrid();
+        }
+
+        function updateStatusGrid() {
+            const grid = document.getElementById('statusGrid');
+            grid.innerHTML = '';
+            
+            Object.entries(testResults).forEach(([test, result]) => {
+                const item = document.createElement('div');
+                item.className = `status-item ${result.success ? 'success' : 'error'}`;
+                item.innerHTML = `
+                    <strong>${test}</strong><br>
+                    ${result.success ? '✅ PASS' : '❌ FAIL'}
+                `;
+                grid.appendChild(item);
+            });
+        }
+
+        async function testConnectivity() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`);
+                const data = await response.json();
+                addResult('Basic Connectivity', true, 'Successfully connected to backend', data);
+            } catch (error) {
+                addResult('Basic Connectivity', false, `Connection failed: ${error.message}`);
+            }
+        }
+
+        async function testApiHealth() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/health`);
+                const data = await response.json();
+                addResult('API Health', true, 'API health endpoint working', data);
+            } catch (error) {
+                addResult('API Health', false, `API health failed: ${error.message}`);
+            }
+        }
+
+        async function testCors() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                addResult('CORS Test', true, 'CORS headers present', corsHeaders);
+            } catch (error) {
+                addResult('CORS Test', false, `CORS test failed: ${error.message}`);
+            }
+        }
+
+        async function testDownload() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/youtube-downloader`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        Url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                        Format: 'mp4',
+                        Quality: 'best',
+                        DirectDownload: false
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('Download Endpoint', true, 'Download endpoint responding', data);
+                } else {
+                    addResult('Download Endpoint', false, `HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                addResult('Download Endpoint', false, `Download test failed: ${error.message}`);
+            }
+        }
+
+        async function testLatency() {
+            const startTime = performance.now();
+            try {
+                await fetch(`${BACKEND_URL}/health`);
+                const endTime = performance.now();
+                const latency = endTime - startTime;
+                
+                let speed = 'Unknown';
+                if (latency < 100) speed = 'Excellent';
+                else if (latency < 300) speed = 'Good';
+                else if (latency < 1000) speed = 'Moderate';
+                else speed = 'Slow';
+                
+                addResult('Latency Test', true, `${latency.toFixed(2)}ms (${speed})`, { latency, speed });
+            } catch (error) {
+                addResult('Latency Test', false, `Latency test failed: ${error.message}`);
+            }
+        }
+
+        async function runQuickTest() {
+            clearResults();
+            addResult('Quick Test', null, 'Starting quick test...', null);
+            
+            await testConnectivity();
+            await testApiHealth();
+            await testCors();
+            
+            const passed = Object.values(testResults).filter(r => r.success).length;
+            const total = Object.keys(testResults).length;
+            
+            addResult('Quick Test Summary', passed === total, `${passed}/${total} tests passed`);
+        }
+
+        async function runFullTest() {
+            clearResults();
+            addResult('Full Test', null, 'Starting full test suite...', null);
+            
+            await testConnectivity();
+            await testApiHealth();
+            await testCors();
+            await testDownload();
+            await testLatency();
+            
+            const passed = Object.values(testResults).filter(r => r.success).length;
+            const total = Object.keys(testResults).length;
+            
+            addResult('Full Test Summary', passed === total, `${passed}/${total} tests passed`);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('statusGrid').innerHTML = '';
+            testResults = {};
+        }
+
+        // Auto-run quick test on page load
+        window.addEventListener('load', () => {
+            setTimeout(runQuickTest, 1000);
+        });
+    </script>
+</body>
+</html> 

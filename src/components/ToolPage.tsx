@@ -37,6 +37,7 @@ import AdSpace from "./AdSpace";
 import { MonetizedButton } from "./MonetizedButton";
 import { getPlatformTypeFromPath } from "../utils/platformConfig";
 import { MonetizationInfo } from "./MonetizationInfo";
+import { MonetizationDebug } from "./MonetizationDebug";
 
 type DownloadStatus = 'pending' | 'downloading' | 'completed' | 'error' | 'processing';
 
@@ -1317,6 +1318,13 @@ export const ToolPage: React.FC<ToolPageProps> = ({
               platformType={getPlatformTypeFromPath(currentPath)}
               className="mt-4"
             />
+
+            {/* Debug Panel - Remove this in production */}
+            {process.env.NODE_ENV === 'development' && (
+              <MonetizationDebug 
+                platformType={getPlatformTypeFromPath(currentPath)}
+              />
+            )}
 
 
 

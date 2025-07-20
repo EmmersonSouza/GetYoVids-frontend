@@ -39,15 +39,25 @@ export const MonetizedButton: React.FC<MonetizedButtonProps> = ({
   const handleClick = async () => {
     if (loading || disabled) return;
 
+    console.log('🔘 MonetizedButton clicked:', {
+      platformType,
+      isConversion,
+      isMonetizationComplete,
+      clickCount,
+      clicksRequired: getClicksRequired(platformType, isConversion)
+    });
+
     // If monetization is not complete, handle monetization click
     if (!isMonetizationComplete) {
       const isComplete = handleMonetizationClick(platformType, isConversion);
+      console.log('🔄 Monetization click result:', isComplete);
       if (!isComplete) {
         return; // Don't proceed with the actual action yet
       }
     }
 
     // Monetization is complete, proceed with the actual action
+    console.log('✅ Proceeding with actual action');
     if (onClick) {
       await onClick();
     }

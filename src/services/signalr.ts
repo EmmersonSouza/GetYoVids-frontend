@@ -15,7 +15,7 @@ interface BatchCompletionResult {
 
 class SignalRService {
   private connection: signalR.HubConnection | null = null;
-  private baseUrl: string = 'http://localhost:5000';
+  private baseUrl: string = 'https://185.165.169.153:5001';
   private isConnecting: boolean = false;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
