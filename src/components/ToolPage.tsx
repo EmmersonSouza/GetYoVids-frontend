@@ -716,185 +716,172 @@ export const ToolPage: React.FC<ToolPageProps> = ({
         continue; // Skip regular download processing for multi-media platforms
       }
 
-      // Check if this is a YouTube URL (playlist or single video - both get enhanced handling)
+      // Check if this is a YouTube URL (playlist or single video)
       const isYouTubeUrl = urlItem.value.includes('youtube.com') || urlItem.value.includes('youtu.be');
       if (isYouTubeUrl) {
         console.log('🎬 Processing YouTube URL:', urlItem.value);
         console.log('🎬 Is playlist:', isYouTubePlaylistUrl, 'Playlist ID:', youtubePlaylistId);
-        console.log('🎬 Using format:', selectedFormat, 'and quality: best');
-        try {
-          let playlistResult: any;
-          
-          if (isYouTubePlaylistUrl && youtubePlaylistId) {
-            console.log('🎬 Calling downloadService.getYouTubePlaylistItems for playlist URL:', urlItem.value);
-            // Get playlist items from backend with format and quality parameters
-            playlistResult = await downloadService.getYouTubePlaylistItems(
-              urlItem.value, 
-              selectedFormat.toLowerCase(), 
-              'best'
-            ) as any;
-          } else {
-            console.log('🎬 Calling downloadService.downloadYouTubeVideo for single video URL:', urlItem.value);
-            // For single YouTube videos, use the YouTube-specific download method
-            playlistResult = await downloadService.downloadYouTubeVideo(
-              urlItem.value, 
-              selectedFormat.toLowerCase(), 
-              'best'
-            ) as any;
-          }
-          
-          console.log('🎬 Received playlist result:', playlistResult);
-          console.log('🎬 Playlist result type:', typeof playlistResult);
-          
-          if (playlistResult) {
-            console.log('🎬 Playlist result keys:', Object.keys(playlistResult));
-            console.log('🎬 Playlist success status:', playlistResult.success);
-            console.log('🎬 Is auto-downloaded:', playlistResult.isAutoDownloaded);
-            console.log('🎬 Playlist items exist:', !!playlistResult.playlistItems);
-            console.log('🎬 Downloaded files exist:', !!playlistResult.downloadedFiles);
-            console.log('🎬 Total items:', playlistResult.totalItems);
-            console.log('🎬 Playlist title:', playlistResult.title);
-          } else {
-            console.log('🎬 Playlist result is null/undefined');
-          }
-          
-          if (playlistResult && playlistResult.success) {
-            if (playlistResult.isAutoDownloaded && playlistResult.downloadedFiles?.length > 0) {
-              // Auto-downloaded content: Single videos or small playlists (Instagram-like behavior)
-              const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
-              const contentType = isPlaylist ? 'playlist' : 'video';
-              console.log(`🎬 ${contentType} auto-downloaded:`, playlistResult.downloadedFiles.length, 'files ready');
-              
-              const newDownloadItems = playlistResult.downloadedFiles.map((file: any) => ({
-                id: generateUniqueId(),
-                url: file.downloadUrl, // Direct download URL for the file
-                status: 'completed' as DownloadStatus, // Files are already downloaded and ready
-                progress: 100,
-                format: file.format || selectedFormat.toLowerCase(),
-                quality: 'best',
-                title: file.displayName || file.fileName,
-                fileName: file.fileName,
-                downloadUrl: file.downloadUrl, // URL to download this specific file
-                fileSize: file.fileSize,
-                thumbnailUrl: file.thumbnailUrl, // Include thumbnail for UI display
-                mediaItem: {
-                  id: file.id,
-                  url: file.downloadUrl,
+        
+        // For single YouTube videos, use the standard download process (like TikTok)
+        if (!isYouTubePlaylistUrl || !youtubePlaylistId) {
+          console.log('🎬 Single YouTube video - using standard download process');
+          // Continue to the standard download process below
+        } else {
+          console.log('🎬 YouTube playlist detected - using enhanced handling');
+          console.log('🎬 Using format:', selectedFormat, 'and quality: best');
+          try {
+            let playlistResult: any;
+            
+            if (isYouTubePlaylistUrl && youtubePlaylistId) {
+              console.log('🎬 Calling downloadService.getYouTubePlaylistItems for playlist URL:', urlItem.value);
+              // Get playlist items from backend with format and quality parameters
+              playlistResult = await downloadService.getYouTubePlaylistItems(
+                urlItem.value, 
+                selectedFormat.toLowerCase(), 
+                'best'
+              ) as any;
+            } else {
+              console.log('🎬 Calling downloadService.downloadYouTubeVideo for single video URL:', urlItem.value);
+              // For single YouTube videos, use the YouTube-specific download method
+              playlistResult = await downloadService.downloadYouTubeVideo(
+                urlItem.value, 
+                selectedFormat.toLowerCase(), 
+                'best'
+              ) as any;
+            }
+            
+            console.log('🎬 Received playlist result:', playlistResult);
+            console.log('🎬 Playlist result type:', typeof playlistResult);
+            
+            if (playlistResult) {
+              console.log('🎬 Playlist result keys:', Object.keys(playlistResult));
+              console.log('🎬 Playlist success status:', playlistResult.success);
+              console.log('🎬 Is auto-downloaded:', playlistResult.isAutoDownloaded);
+              console.log('🎬 Playlist items exist:', !!playlistResult.playlistItems);
+              console.log('🎬 Downloaded files exist:', !!playlistResult.downloadedFiles);
+              console.log('🎬 Total items:', playlistResult.totalItems);
+              console.log('🎬 Playlist title:', playlistResult.title);
+            } else {
+              console.log('🎬 Playlist result is null/undefined');
+            }
+            
+            if (playlistResult && playlistResult.success) {
+              if (playlistResult.isAutoDownloaded && playlistResult.downloadedFiles?.length > 0) {
+                // Auto-downloaded content: Single videos or small playlists (Instagram-like behavior)
+                const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
+                const contentType = isPlaylist ? 'playlist' : 'video';
+                console.log(`🎬 ${contentType} auto-downloaded:`, playlistResult.downloadedFiles.length, 'files ready');
+                
+                const newDownloadItems = playlistResult.downloadedFiles.map((file: any) => ({
+                  id: generateUniqueId(),
+                  url: file.downloadUrl, // Direct download URL for the file
+                  status: 'completed' as DownloadStatus, // Files are already downloaded and ready
+                  progress: 100,
+                  format: file.format || selectedFormat.toLowerCase(),
+                  quality: 'best',
                   title: file.displayName || file.fileName,
-                  mediaType: file.mediaType || 'video',
-                  resolution: undefined,
+                  fileName: file.fileName,
+                  downloadUrl: file.downloadUrl, // URL to download this specific file
                   fileSize: file.fileSize,
-                  suggestedFormat: file.format || selectedFormat.toLowerCase(),
-                  displayName: file.displayName || file.fileName,
-                  platform: 'youtube'
-                },
-                isFromMultiMediaPost: true,
-                postTitle: playlistResult.title || (isPlaylist ? 'YouTube Playlist' : 'YouTube Video')
-              }));
+                  thumbnailUrl: file.thumbnailUrl, // Include thumbnail for UI display
+                  mediaItem: {
+                    id: file.id,
+                    url: file.downloadUrl,
+                    title: file.displayName || file.fileName,
+                    mediaType: file.mediaType || 'video',
+                    resolution: undefined,
+                    fileSize: file.fileSize,
+                    suggestedFormat: file.format || selectedFormat.toLowerCase(),
+                    displayName: file.displayName || file.fileName,
+                    platform: 'youtube'
+                  },
+                  isFromMultiMediaPost: true,
+                  postTitle: playlistResult.title || (isPlaylist ? 'YouTube Playlist' : 'YouTube Video')
+                }));
 
-              setDownloads(prev => [...prev, ...newDownloadItems]);
+                setDownloads(prev => [...prev, ...newDownloadItems]);
 
-              const fileCount = newDownloadItems.length;
-              const successMessage = isPlaylist 
-                ? `Small playlist auto-downloaded! ${fileCount} videos are ready for download.`
-                : `Video downloaded! Ready for download with thumbnail.`;
-              
-              toast({
-                title: `${fileCount} ${fileCount === 1 ? 'file' : 'files'} ready!`,
-                description: successMessage + ' Click individual download buttons to save them.',
-              });
-              
-            } else if (!playlistResult.isAutoDownloaded && playlistResult.playlistItems?.length > 0) {
-              // Large playlist: Individual selection required (current behavior)
-              console.log('🎬 Large playlist requiring selection:', playlistResult.playlistItems.length, 'videos available');
-              
-              const newDownloadItems = playlistResult.playlistItems.map((video: any) => ({
-                id: generateUniqueId(),
-                url: video.url, // Individual video URL
-                status: 'pending' as DownloadStatus, // Videos need to be downloaded individually
-                progress: 0,
-                format: selectedFormat.toLowerCase(),
-                quality: 'best',
-                title: video.title,
-                fileName: `${video.title}.${selectedFormat.toLowerCase()}`,
-                mediaItem: {
-                  id: video.id,
-                  url: video.url,
-                  title: video.title,
-                  thumbnailUrl: video.thumbnailUrl,
-                  mediaType: 'video',
-                  resolution: undefined,
-                  fileSize: 0,
-                  suggestedFormat: selectedFormat.toLowerCase(),
-                  displayName: video.title,
-                  platform: 'youtube'
-                },
-                isFromMultiMediaPost: true,
-                postTitle: playlistResult.title || `YouTube Playlist`
-              }));
-
-              setDownloads(prev => [...prev, ...newDownloadItems]);
-
-              const videoCount = newDownloadItems.length;
-              
-              // Check if auto-download was blocked for safety reasons
-              if (playlistResult.safetyMessage) {
+                const fileCount = newDownloadItems.length;
+                const successMessage = isPlaylist 
+                  ? `Small playlist auto-downloaded! ${fileCount} videos are ready for download.`
+                  : `Video downloaded! Ready for download with thumbnail.`;
+                
                 toast({
-                  title: `Safety limits exceeded!`,
-                  description: `Auto-download blocked: ${playlistResult.safetyMessage}. Please select individual videos to download.`,
-                  variant: 'destructive',
+                  title: `${fileCount} ${fileCount === 1 ? 'file' : 'files'} ready!`,
+                  description: successMessage + ' Click individual download buttons to save them.',
                 });
-              } else {
+                
+              } else if (!playlistResult.isAutoDownloaded && playlistResult.playlistItems?.length > 0) {
+                // Large playlist: Individual selection required (current behavior)
+                console.log('🎬 Large playlist requiring selection:', playlistResult.playlistItems.length, 'videos available');
+                
+                const newDownloadItems = playlistResult.playlistItems.map((video: any) => ({
+                  id: generateUniqueId(),
+                  url: video.url, // Individual video URL
+                  status: 'pending' as DownloadStatus, // Videos need to be downloaded individually
+                  progress: 0,
+                  format: selectedFormat.toLowerCase(),
+                  quality: 'best',
+                  title: video.title,
+                  fileName: `${video.title}.${selectedFormat.toLowerCase()}`,
+                  thumbnailUrl: video.thumbnailUrl,
+                  isPlaylistItem: true,
+                  playlistTitle: playlistResult.title || 'YouTube Playlist'
+                }));
+
+                setDownloads(prev => [...prev, ...newDownloadItems]);
+
+                const videoCount = newDownloadItems.length;
                 toast({
                   title: `${videoCount} videos found!`,
                   description: `Large playlist detected! Found ${videoCount} videos. Click individual download buttons to download each video.`,
                 });
               }
+            } else {
+              // Handle case where no videos were found
+              console.warn('🎬 No videos found in YouTube playlist');
+              console.warn('🎬 Playlist result analysis:');
+              console.warn('🎬 - playlistResult exists:', !!playlistResult);
+              console.warn('🎬 - playlistResult.playlistItems exists:', !!playlistResult?.playlistItems);
+              console.warn('🎬 - playlistResult.playlistItems length:', playlistResult?.playlistItems?.length);
+              console.warn('🎬 - playlistResult.success:', playlistResult?.success);
+              console.warn('🎬 - playlistResult.error:', playlistResult?.error);
+              console.warn('🎬 - Full playlistResult object:', playlistResult);
+              
+              const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
+              const contentType = isPlaylist ? 'playlist' : 'video';
+              
+              toast({
+                title: `No ${contentType.charAt(0).toUpperCase() + contentType.slice(1)} Found`,
+                description: `No ${contentType} could be found at this YouTube URL`,
+                variant: 'destructive',
+              });
             }
-          } else {
-            // Handle case where no videos were found
-            console.warn('🎬 No videos found in YouTube playlist');
-            console.warn('🎬 Playlist result analysis:');
-            console.warn('🎬 - playlistResult exists:', !!playlistResult);
-            console.warn('🎬 - playlistResult.playlistItems exists:', !!playlistResult?.playlistItems);
-            console.warn('🎬 - playlistResult.playlistItems length:', playlistResult?.playlistItems?.length);
-            console.warn('🎬 - playlistResult.success:', playlistResult?.success);
-            console.warn('🎬 - playlistResult.error:', playlistResult?.error);
-            console.warn('🎬 - Full playlistResult object:', playlistResult);
+          } catch (error) {
+            console.error('🎬 Error processing YouTube playlist:', error);
+            console.error('🎬 Error type:', typeof error);
+            console.error('🎬 Error name:', error?.name);
+            console.error('🎬 Error message:', error?.message);
+            console.error('🎬 Error stack:', error?.stack);
+            
+            if (error?.response) {
+              console.error('🎬 Error response:', error.response);
+              console.error('🎬 Error response status:', error.response.status);
+              console.error('🎬 Error response data:', error.response.data);
+              console.error('🎬 Error response headers:', error.response.headers);
+            } else if (error?.request) {
+              console.error('🎬 Error request:', error.request);
+            }
             
             const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
             const contentType = isPlaylist ? 'playlist' : 'video';
             
             toast({
-              title: `No ${contentType.charAt(0).toUpperCase() + contentType.slice(1)} Found`,
-              description: `No ${contentType} could be found at this YouTube URL`,
+              title: `YouTube ${contentType} Error`,
+              description: `Failed to get ${contentType} from YouTube. Please check the URL and try again.`,
               variant: 'destructive',
             });
           }
-        } catch (error) {
-          console.error('🎬 Error processing YouTube playlist:', error);
-          console.error('🎬 Error type:', typeof error);
-          console.error('🎬 Error name:', error?.name);
-          console.error('🎬 Error message:', error?.message);
-          console.error('🎬 Error stack:', error?.stack);
-          
-          if (error?.response) {
-            console.error('🎬 Error response:', error.response);
-            console.error('🎬 Error response status:', error.response.status);
-            console.error('🎬 Error response data:', error.response.data);
-            console.error('🎬 Error response headers:', error.response.headers);
-          } else if (error?.request) {
-            console.error('🎬 Error request:', error.request);
-          }
-          
-          const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
-          const contentType = isPlaylist ? 'playlist' : 'video';
-          
-          toast({
-            title: `YouTube ${contentType} Error`,
-            description: `Failed to get ${contentType} from YouTube. Please check the URL and try again.`,
-            variant: 'destructive',
-          });
         }
         continue; // Skip regular download processing for YouTube videos and playlists
       }

@@ -70,33 +70,7 @@ const YoutubeDownloader = () => {
               "@type": "AggregateRating",
               "ratingValue": "4.8",
               "ratingCount": "1250"
-            },
-            "review": [
-              {
-                "@type": "Review",
-                "author": {
-                  "@type": "Person",
-                  "name": "Sarah M."
-                },
-                "reviewRating": {
-                  "@type": "Rating",
-                  "ratingValue": "5"
-                },
-                "reviewBody": "Finally found a YouTube downloader that actually works! Fast and reliable."
-              },
-              {
-                "@type": "Review",
-                "author": {
-                  "@type": "Person",
-                  "name": "Mike R."
-                },
-                "reviewRating": {
-                  "@type": "Rating",
-                  "ratingValue": "5"
-                },
-                "reviewBody": "Best quality downloads I've ever seen. HD videos look perfect!"
-              }
-            ]
+            }
           })}
         </script>
       </Helmet>
@@ -172,8 +146,6 @@ const YoutubeDownloader = () => {
             </div>
           </div>
         </div>
-
-
 
         {/* FAQ Section */}
         <div className="mt-8 bg-card rounded-lg border border-gray-800 p-8">
