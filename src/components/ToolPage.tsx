@@ -225,8 +225,8 @@ export const ToolPage: React.FC<ToolPageProps> = ({
     return urls.some(url => {
       const multiMediaPlatform = isMultiMediaPlatform(url.value);
       // Only hide for non-YouTube multi-media platforms (Instagram, Facebook, Reddit)
-      // YouTube playlists should show format selector so users can choose MP3, MP4, etc.
-      return multiMediaPlatform; // Removed YouTube playlist check
+      // YouTube should show format selector like TikTok
+      return multiMediaPlatform && !url.value.includes('youtube.com') && !url.value.includes('youtu.be');
     });
   }, [urls]);
 
@@ -724,8 +724,8 @@ export const ToolPage: React.FC<ToolPageProps> = ({
         
         // For single YouTube videos, use the standard download process (like TikTok)
         if (!isYouTubePlaylistUrl || !youtubePlaylistId) {
-          console.log('🎬 Single YouTube video - using standard download process');
-          // Continue to the standard download process below
+          console.log('🎬 Single YouTube video - using standard download process like TikTok');
+          // Continue to the standard download process below - this will use downloadMedia() like TikTok
         } else {
           console.log('🎬 YouTube playlist detected - using enhanced handling');
           console.log('🎬 Using format:', selectedFormat, 'and quality: best');
@@ -883,7 +883,12 @@ export const ToolPage: React.FC<ToolPageProps> = ({
             });
           }
         }
-        continue; // Skip regular download processing for YouTube videos and playlists
+        // For single videos, continue to standard download process
+        if (!isYouTubePlaylistUrl || !youtubePlaylistId) {
+          console.log('🎬 Single YouTube video - continuing to standard download process like TikTok');
+        } else {
+          continue; // Skip regular download processing only for YouTube playlists
+        }
       }
 
       // Handle regular downloads for non-YouTube, non-multi-media platforms
