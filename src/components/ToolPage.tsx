@@ -130,6 +130,7 @@ interface DownloadItem {
   cloudStorage?: boolean;
   fileKey?: string;
   expirationTime?: string;
+  contentType?: string; // Added for file type
 }
 
 interface ToolPageProps {
@@ -185,26 +186,8 @@ export const ToolPage: React.FC<ToolPageProps> = ({
     return null;
   };
 
-  // Helper function to detect YouTube playlists
-  const isYouTubePlaylist = (url: string): { isPlaylist: boolean; playlistId?: string } => {
-    console.log('🔍 Checking if URL is YouTube playlist:', url);
-    
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      console.log('🔍 URL contains YouTube domain');
-      const playlistMatch = url.match(/[&?]list=([a-zA-Z0-9_-]+)/);
-      console.log('🔍 Playlist regex match result:', playlistMatch);
-      
-      const result = {
-        isPlaylist: !!playlistMatch,
-        playlistId: playlistMatch ? playlistMatch[1] : undefined
-      };
-      console.log('🔍 isYouTubePlaylist result:', result);
-      return result;
-    }
-    
-    console.log('🔍 URL is not from YouTube');
-    return { isPlaylist: false };
-  };
+  // YouTube playlist detection removed - YouTube now works like TikTok
+  // All YouTube URLs are processed uniformly through downloadMedia()
 
   // Check if the current route is a multi-media platform (hide format selector by default)
   const isMultiMediaRoute = (): boolean => {
@@ -229,6 +212,59 @@ export const ToolPage: React.FC<ToolPageProps> = ({
       return multiMediaPlatform && !url.value.includes('youtube.com') && !url.value.includes('youtu.be');
     });
   }, [urls]);
+
+  // Add a simple test function to verify download flow
+  const testDownloadFlow = useCallback(async () => {
+    console.log('🧪 Testing download flow...');
+    
+    try {
+      const testUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; // Rick Roll for testing
+      const platformRoute = 'youtube-downloader';
+      const format = 'mp4';
+      const quality = 'best';
+      const options = {
+        directDownload: true,
+        useCloudStorage: false
+      };
+      
+      console.log('🧪 Test parameters:', { testUrl, platformRoute, format, quality, options });
+      
+      const result = await downloadService.downloadMedia(
+        platformRoute,
+        testUrl,
+        format,
+        quality,
+        (progress) => console.log('🧪 Progress:', progress),
+        options
+      );
+      
+      console.log('🧪 Test result:', result);
+      console.log('🧪 Result is Blob:', result instanceof Blob);
+      
+      if (result instanceof Blob) {
+        console.log('🧪 Test successful! Blob received with size:', result.size);
+        toast({
+          title: 'Test Successful',
+          description: 'Download flow is working correctly',
+          variant: 'default',
+        });
+      } else {
+        console.log('🧪 Test failed! Expected Blob but got:', typeof result);
+        toast({
+          title: 'Test Failed',
+          description: 'Download flow is not working correctly',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('🧪 Test error:', error);
+      toast({
+        title: 'Test Error',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  }, []);
 
   // Add a new URL field
   const addUrlField = useCallback(() => {
@@ -640,8 +676,7 @@ export const ToolPage: React.FC<ToolPageProps> = ({
       console.log('🎯 Processing URL:', urlItem.value);
       console.log('🎯 Multi-media platform detected:', multiMediaPlatform);
       
-      const { isPlaylist: isYouTubePlaylistUrl, playlistId: youtubePlaylistId } = isYouTubePlaylist(urlItem.value);
-      console.log('🎯 YouTube playlist detection result:', { isYouTubePlaylistUrl, youtubePlaylistId });
+      // YouTube playlist detection removed - all YouTube URLs processed uniformly
       
       if (multiMediaPlatform) {
         try {
@@ -716,182 +751,13 @@ export const ToolPage: React.FC<ToolPageProps> = ({
         continue; // Skip regular download processing for multi-media platforms
       }
 
-      // Check if this is a YouTube URL (playlist or single video)
-      const isYouTubeUrl = urlItem.value.includes('youtube.com') || urlItem.value.includes('youtu.be');
-      if (isYouTubeUrl) {
-        console.log('🎬 Processing YouTube URL:', urlItem.value);
-        console.log('🎬 Is playlist:', isYouTubePlaylistUrl, 'Playlist ID:', youtubePlaylistId);
-        
-        // For single YouTube videos, use the standard download process (like TikTok)
-        if (!isYouTubePlaylistUrl || !youtubePlaylistId) {
-          console.log('🎬 Single YouTube video - using standard download process like TikTok');
-          // Continue to the standard download process below - this will use downloadMedia() like TikTok
-        } else {
-          console.log('🎬 YouTube playlist detected - using enhanced handling');
-          console.log('🎬 Using format:', selectedFormat, 'and quality: best');
-          try {
-            let playlistResult: any;
-            
-            if (isYouTubePlaylistUrl && youtubePlaylistId) {
-              console.log('🎬 Calling downloadService.getYouTubePlaylistItems for playlist URL:', urlItem.value);
-              // Get playlist items from backend with format and quality parameters
-              playlistResult = await downloadService.getYouTubePlaylistItems(
-                urlItem.value, 
-                selectedFormat.toLowerCase(), 
-                'best'
-              ) as any;
-            } else {
-              console.log('🎬 Calling downloadService.downloadYouTubeVideo for single video URL:', urlItem.value);
-              // For single YouTube videos, use the YouTube-specific download method
-              playlistResult = await downloadService.downloadYouTubeVideo(
-                urlItem.value, 
-                selectedFormat.toLowerCase(), 
-                'best'
-              ) as any;
-            }
-            
-            console.log('🎬 Received playlist result:', playlistResult);
-            console.log('🎬 Playlist result type:', typeof playlistResult);
-            
-            if (playlistResult) {
-              console.log('🎬 Playlist result keys:', Object.keys(playlistResult));
-              console.log('🎬 Playlist success status:', playlistResult.success);
-              console.log('🎬 Is auto-downloaded:', playlistResult.isAutoDownloaded);
-              console.log('🎬 Playlist items exist:', !!playlistResult.playlistItems);
-              console.log('🎬 Downloaded files exist:', !!playlistResult.downloadedFiles);
-              console.log('🎬 Total items:', playlistResult.totalItems);
-              console.log('🎬 Playlist title:', playlistResult.title);
-            } else {
-              console.log('🎬 Playlist result is null/undefined');
-            }
-            
-            if (playlistResult && playlistResult.success) {
-              if (playlistResult.isAutoDownloaded && playlistResult.downloadedFiles?.length > 0) {
-                // Auto-downloaded content: Single videos or small playlists (Instagram-like behavior)
-                const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
-                const contentType = isPlaylist ? 'playlist' : 'video';
-                console.log(`🎬 ${contentType} auto-downloaded:`, playlistResult.downloadedFiles.length, 'files ready');
-                
-                const newDownloadItems = playlistResult.downloadedFiles.map((file: any) => ({
-                  id: generateUniqueId(),
-                  url: file.downloadUrl, // Direct download URL for the file
-                  status: 'completed' as DownloadStatus, // Files are already downloaded and ready
-                  progress: 100,
-                  format: file.format || selectedFormat.toLowerCase(),
-                  quality: 'best',
-                  title: file.displayName || file.fileName,
-                  fileName: file.fileName,
-                  downloadUrl: file.downloadUrl, // URL to download this specific file
-                  fileSize: file.fileSize,
-                  thumbnailUrl: file.thumbnailUrl, // Include thumbnail for UI display
-                  mediaItem: {
-                    id: file.id,
-                    url: file.downloadUrl,
-                    title: file.displayName || file.fileName,
-                    mediaType: file.mediaType || 'video',
-                    resolution: undefined,
-                    fileSize: file.fileSize,
-                    suggestedFormat: file.format || selectedFormat.toLowerCase(),
-                    displayName: file.displayName || file.fileName,
-                    platform: 'youtube'
-                  },
-                  isFromMultiMediaPost: true,
-                  postTitle: playlistResult.title || (isPlaylist ? 'YouTube Playlist' : 'YouTube Video')
-                }));
+      // YouTube now works exactly like TikTok - no special handling needed
+      // All YouTube URLs (single videos, videos with playlist params, playlists) 
+      // will be processed by the standard download process below
 
-                setDownloads(prev => [...prev, ...newDownloadItems]);
-
-                const fileCount = newDownloadItems.length;
-                const successMessage = isPlaylist 
-                  ? `Small playlist auto-downloaded! ${fileCount} videos are ready for download.`
-                  : `Video downloaded! Ready for download with thumbnail.`;
-                
-                toast({
-                  title: `${fileCount} ${fileCount === 1 ? 'file' : 'files'} ready!`,
-                  description: successMessage + ' Click individual download buttons to save them.',
-                });
-                
-              } else if (!playlistResult.isAutoDownloaded && playlistResult.playlistItems?.length > 0) {
-                // Large playlist: Individual selection required (current behavior)
-                console.log('🎬 Large playlist requiring selection:', playlistResult.playlistItems.length, 'videos available');
-                
-                const newDownloadItems = playlistResult.playlistItems.map((video: any) => ({
-                  id: generateUniqueId(),
-                  url: video.url, // Individual video URL
-                  status: 'pending' as DownloadStatus, // Videos need to be downloaded individually
-                  progress: 0,
-                  format: selectedFormat.toLowerCase(),
-                  quality: 'best',
-                  title: video.title,
-                  fileName: `${video.title}.${selectedFormat.toLowerCase()}`,
-                  thumbnailUrl: video.thumbnailUrl,
-                  isPlaylistItem: true,
-                  playlistTitle: playlistResult.title || 'YouTube Playlist'
-                }));
-
-                setDownloads(prev => [...prev, ...newDownloadItems]);
-
-                const videoCount = newDownloadItems.length;
-                toast({
-                  title: `${videoCount} videos found!`,
-                  description: `Large playlist detected! Found ${videoCount} videos. Click individual download buttons to download each video.`,
-                });
-              }
-            } else {
-              // Handle case where no videos were found
-              console.warn('🎬 No videos found in YouTube playlist');
-              console.warn('🎬 Playlist result analysis:');
-              console.warn('🎬 - playlistResult exists:', !!playlistResult);
-              console.warn('🎬 - playlistResult.playlistItems exists:', !!playlistResult?.playlistItems);
-              console.warn('🎬 - playlistResult.playlistItems length:', playlistResult?.playlistItems?.length);
-              console.warn('🎬 - playlistResult.success:', playlistResult?.success);
-              console.warn('🎬 - playlistResult.error:', playlistResult?.error);
-              console.warn('🎬 - Full playlistResult object:', playlistResult);
-              
-              const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
-              const contentType = isPlaylist ? 'playlist' : 'video';
-              
-              toast({
-                title: `No ${contentType.charAt(0).toUpperCase() + contentType.slice(1)} Found`,
-                description: `No ${contentType} could be found at this YouTube URL`,
-                variant: 'destructive',
-              });
-            }
-          } catch (error) {
-            console.error('🎬 Error processing YouTube playlist:', error);
-            console.error('🎬 Error type:', typeof error);
-            console.error('🎬 Error name:', error?.name);
-            console.error('🎬 Error message:', error?.message);
-            console.error('🎬 Error stack:', error?.stack);
-            
-            if (error?.response) {
-              console.error('🎬 Error response:', error.response);
-              console.error('🎬 Error response status:', error.response.status);
-              console.error('🎬 Error response data:', error.response.data);
-              console.error('🎬 Error response headers:', error.response.headers);
-            } else if (error?.request) {
-              console.error('🎬 Error request:', error.request);
-            }
-            
-            const isPlaylist = isYouTubePlaylistUrl && youtubePlaylistId;
-            const contentType = isPlaylist ? 'playlist' : 'video';
-            
-            toast({
-              title: `YouTube ${contentType} Error`,
-              description: `Failed to get ${contentType} from YouTube. Please check the URL and try again.`,
-              variant: 'destructive',
-            });
-          }
-        }
-        // For single videos, continue to standard download process
-        if (!isYouTubePlaylistUrl || !youtubePlaylistId) {
-          console.log('🎬 Single YouTube video - continuing to standard download process like TikTok');
-        } else {
-          continue; // Skip regular download processing only for YouTube playlists
-        }
-      }
-
-      // Handle regular downloads for non-YouTube, non-multi-media platforms
+      // Handle regular downloads for all platforms (TikTok, YouTube, Twitter, Vimeo, Facebook, Twitch, Reddit)
+      // Contract: downloadMedia() -> /api/download/{platform} -> returns file blob
+      // YouTube now works exactly like TikTok - unified contract!
       const downloadId = generateUniqueId();
       const newItem: DownloadItem = {
         id: downloadId,
@@ -913,7 +779,7 @@ export const ToolPage: React.FC<ToolPageProps> = ({
         const quality = 'best';
         const options = {
           removeWatermark: urlItem.removeWatermark || false,
-          directDownload: true, // Use direct download like retry function
+          directDownload: true, // ALWAYS direct download - ALWAYS ALWAYS ALWAYS!!!
           useCloudStorage: false // Don't force cloud storage for regular downloads
         };
         console.log('ToolPage.tsx: handleDownload - options.directDownload:', options.directDownload);
@@ -939,13 +805,19 @@ export const ToolPage: React.FC<ToolPageProps> = ({
           options
         );
 
-        // Handle the result
+        console.log('🔄 Download result received');
+        console.log('🔄 Result type:', typeof result);
+        console.log('🔄 Result:', result);
+
+        // Handle the result - ALWAYS expecting blob for direct download
         if (result instanceof Blob) {
+          console.log('✅ Result is a Blob, processing...');
           // Create a download URL for the blob but don't trigger download automatically
           const url = window.URL.createObjectURL(result);
           const fileExt = format || 'mp4';
-
-          // Update download status to completed with downloadUrl available
+          const fileName = `download.${fileExt}`;
+          
+          // Update download status to completed with download info
           setDownloads(prev =>
             prev.map(i =>
               i.id === downloadId
@@ -954,19 +826,23 @@ export const ToolPage: React.FC<ToolPageProps> = ({
                     progress: 100,
                     status: 'completed',
                     downloadUrl: url,
-                    fileName: `download.${fileExt}`
+                    fileName: fileName,
+                    fileSize: result.size,
+                    contentType: result.type
                   }
                 : i
             )
           );
-
+          
+          console.log('✅ File added to download queue:', fileName);
           toast({
-            title: 'Download Ready',
-            description: 'File is ready for download',
-            variant: "default",
+            title: 'Download Ready!',
+            description: `Your file is ready to download. Click the download button in the queue.`,
+            variant: 'default',
           });
         } else {
-          throw new Error('Failed to download file');
+          console.error('❌ Expected Blob but got:', typeof result, result);
+          throw new Error('Invalid response format - expected file blob');
         }
       } catch (error) {
         // Update only this specific download to error state
@@ -1243,6 +1119,18 @@ export const ToolPage: React.FC<ToolPageProps> = ({
                 size="lg"
                 hasValidUrl={hasValidUrls}
               />
+              
+              {/* Test button for debugging */}
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  variant="outline"
+                  onClick={testDownloadFlow}
+                  disabled={isLoading}
+                  className="w-full mt-2"
+                >
+                  🧪 Test Download Flow
+                </Button>
+              )}
             </div>
           </div>
 

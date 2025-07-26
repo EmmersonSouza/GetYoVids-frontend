@@ -76,7 +76,7 @@ class ApiService {
     
     this.apiInstance = axios.create({
       baseURL: connection.bestApiUrl,
-      timeout: 600000, // 10 minutes for video processing
+      timeout: 1800000, // 30 minutes for video processing (increased from 10)
       headers: {
         'Content-Type': 'application/json',
       },
@@ -103,12 +103,37 @@ class ApiService {
     // Response interceptor
     this.apiInstance.interceptors.response.use(
       (response: AxiosResponse) => {
-        if (response.config.responseType === 'blob') {
-          return response;
-        }
+        // Always return response.data, regardless of responseType
+        // This ensures blob responses are handled correctly
         return response.data;
       },
       (error: AxiosError) => {
+        // Handle blob response errors differently
+        if (error.config?.responseType === 'blob') {
+          console.error('Blob response error:', error);
+          // For blob responses, we need to read the error response as text
+          if (error.response?.data instanceof Blob) {
+            // Try to read the blob as text to get error details
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const errorText = reader.result as string;
+                const errorData = JSON.parse(errorText);
+                console.error('Blob error details:', errorData);
+              } catch (e) {
+                console.error('Could not parse blob error response');
+              }
+            };
+            reader.readAsText(error.response.data);
+          }
+          
+          return Promise.reject({
+            message: 'Download failed',
+            code: error.response?.status || 'BLOB_ERROR',
+            details: error.response?.data,
+          });
+        }
+        
         if (error.response) {
           const errorData = error.response.data as { detail?: string; message?: string; };
           const errorMessage = errorData?.detail || errorData?.message || 'An error occurred';
@@ -250,19 +275,35 @@ export const downloadService = {
       // Handle direct download
       if (options.directDownload) {
         console.log('⬇️ Starting direct download...');
+        console.log('⬇️ Endpoint:', endpoint);
+        console.log('⬇️ Request data:', requestData);
         
-        const response = await api.post(endpoint, requestData, {
-          responseType: 'blob',
-          onDownloadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              onProgress?.(progress);
+        try {
+          // Use the same approach for all platforms (including YouTube)
+          const response = await api.post(endpoint, requestData, {
+            responseType: 'blob',
+            timeout: 1800000, // 30 minutes for all downloads
+            onDownloadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                onProgress?.(progress);
+              }
             }
-          }
-        });
+          });
 
-        // Return the blob so the calling component can handle it properly
-        return response.data;
+          console.log('⬇️ Direct download response received');
+          console.log('⬇️ Response type:', typeof response);
+          console.log('⬇️ Response is Blob:', response instanceof Blob);
+          console.log('⬇️ Response size:', response instanceof Blob ? response.size : 'N/A');
+
+          // Return the blob so the calling component can handle it properly
+          return response;
+        } catch (error) {
+          console.error('⬇️ Direct download error:', error);
+          console.error('⬇️ Error type:', typeof error);
+          console.error('⬇️ Error details:', error);
+          throw error;
+        }
       }
 
       // Handle regular download with progress tracking

@@ -68,6 +68,24 @@ class ConnectionDetector {
     return protocol === 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1';
   }
 
+  // Check if local development mode is forced
+  private isLocalDevelopmentForced(): boolean {
+    // Check URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('local') === 'true') {
+      console.log('🔧 Local development mode forced via URL parameter');
+      return true;
+    }
+    
+    // Check localStorage
+    if (localStorage.getItem('forceLocalDevelopment') === 'true') {
+      console.log('🔧 Local development mode forced via localStorage');
+      return true;
+    }
+    
+    return false;
+  }
+
   // Test a single connection
   private async testConnection(url: string, type: string): Promise<ConnectionTest> {
     const startTime = Date.now();
@@ -149,12 +167,80 @@ class ConnectionDetector {
     
     const domain = this.getCurrentDomain();
     const isProduction = this.isProductionEnvironment();
+    const isLocalForced = this.isLocalDevelopmentForced();
     
     console.log(`🌍 Environment: ${isProduction ? 'Production' : 'Development'}`);
     console.log(`🌐 Current domain: ${domain}`);
     console.log(`🔒 Protocol: ${window.location.protocol}`);
+    console.log(`🔧 Local development forced: ${isLocalForced}`);
     
-    // Check if hathormodel.com is available first
+    // If local development is forced, skip all other checks
+    if (isLocalForced) {
+      console.log('🔧 Forced local development mode - testing localhost connections only');
+      
+      const localConnections = [
+        { url: 'http://localhost:5000', type: 'localhost' },
+        { url: 'https://localhost:5001', type: 'localhost-https' }
+      ];
+      
+      console.log(`🔗 Testing localhost connections:`, localConnections.map(c => `${c.type}: ${c.url}`));
+      
+      const localTestPromises = localConnections.map(conn => 
+        this.testConnection(conn.url, conn.type)
+      );
+      
+      const localResults = await Promise.all(localTestPromises);
+      const successfulLocalConnections = localResults.filter(r => r.success);
+      
+      if (successfulLocalConnections.length > 0) {
+        const bestLocalConnection = successfulLocalConnections.sort((a, b) => a.responseTime - b.responseTime)[0];
+        console.log(`🎯 Local connection successful: ${bestLocalConnection.type} (${bestLocalConnection.responseTime}ms)`);
+        
+        return {
+          bestApiUrl: `${bestLocalConnection.url}/api`,
+          bestSignalRUrl: bestLocalConnection.url,
+          connectionType: bestLocalConnection.type,
+          allResults: localResults
+        };
+      } else {
+        console.error('❌ No local connections available in forced local mode');
+        throw new Error('No local backend connections available. Please start your backend server on localhost:5000');
+      }
+    }
+    
+    // In development mode, prioritize localhost over hathormodel.com
+    if (!isProduction && (domain === 'localhost' || domain === '127.0.0.1')) {
+      console.log('🔧 Development mode detected - prioritizing localhost connections');
+      
+      // Test localhost connections first
+      const localConnections = [
+        { url: 'http://localhost:5000', type: 'localhost' },
+        { url: 'https://localhost:5001', type: 'localhost-https' }
+      ];
+      
+      console.log(`🔗 Testing localhost connections:`, localConnections.map(c => `${c.type}: ${c.url}`));
+      
+      const localTestPromises = localConnections.map(conn => 
+        this.testConnection(conn.url, conn.type)
+      );
+      
+      const localResults = await Promise.all(localTestPromises);
+      const successfulLocalConnections = localResults.filter(r => r.success);
+      
+      if (successfulLocalConnections.length > 0) {
+        const bestLocalConnection = successfulLocalConnections.sort((a, b) => a.responseTime - b.responseTime)[0];
+        console.log(`🎯 Local connection successful: ${bestLocalConnection.type} (${bestLocalConnection.responseTime}ms)`);
+        
+        return {
+          bestApiUrl: `${bestLocalConnection.url}/api`,
+          bestSignalRUrl: bestLocalConnection.url,
+          connectionType: bestLocalConnection.type,
+          allResults: localResults
+        };
+      }
+    }
+    
+    // Check if hathormodel.com is available
     const hathormodelAvailable = await this.checkHathormodelAvailability();
     
     if (hathormodelAvailable) {
